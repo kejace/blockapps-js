@@ -50,7 +50,6 @@ function SolContract(privkey, txParams) {
         txParams = {};
     }
     txParams.data = this.vmCode;
-    console.log(privkey)
     return Transaction(txParams).send(privkey, null).get("contractsCreated").
         tap(function(addrList){
             if (addrList.length !== 1) {
