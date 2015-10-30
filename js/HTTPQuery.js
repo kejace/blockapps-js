@@ -10,7 +10,10 @@ module.exports.defaults = defaults;
 function HTTPQuery(queryPath, params) {
     var options = {
         "uri":defaults.serverURI + defaults.apiPrefix + queryPath,
-        "json" : true
+        "json" : true,
+        rejectUnauthorized: false,
+        requestCert: true,
+        agent: false
     };
     if (Object.keys(params).length != 1) {
         throw new Error(

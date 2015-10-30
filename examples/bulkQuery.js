@@ -3,7 +3,9 @@ var faucet = blockapps.routes.faucet;
 var Solidity = blockapps.Solidity;
 var Promise = require("bluebird");
 
-blockapps.pollEveryMS = 1000
+blockapps.query.serverURI = "http://blockapps.cloudapp.net"
+blockapps.polling.pollEveryMS = 1000
+//blockapps.polling.pollTimeoutMS = 30000
 
 var contract, keystore;
 var names = {};
@@ -23,8 +25,9 @@ function start() {
     Solidity(code).call("newContract", privkey).then(function(c) {
         contract = c;
         donate.disabled = false;
-    }, function() {
-        console.log("Timed out");
+    }, function(e) {
+        console.log("Error");
+        console.log(e);
         donate.disabled = false;
     });
 }
@@ -44,6 +47,7 @@ function buttonPush() {
                 placard.value = text;
             });
         }, function(e) {
+            console.log("Error");
             console.log(e);
         }).finally(function() {
             donate.disabled = false;
@@ -124,7 +128,7 @@ contract StarvingArtist {\n\
     }\n\
 \n\
     var patron = patronInfo[msg.sender];\n\
-    string message;\n\
+    string memory message;\n\
     if (patron.totalPayments == 0) {\n\
       ++patrons.length;\n\
       patrons[patrons.length - 1] = msg.sender;\n\

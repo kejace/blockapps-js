@@ -45,7 +45,7 @@ function Transaction(argObj) {
     tx.send = function(privKeyFrom, addressTo) {
         privKeyFrom = new Buffer(privKeyFrom,"hex");
         var fromAddr = Address(privateToAddress(privKeyFrom));
-        tx.from = "0x" + fromAddr.toString();
+        tx.from = Address(fromAddr).toString();
         if (addressTo === null) {
             tx.to = "";
         }

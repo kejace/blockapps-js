@@ -57,9 +57,7 @@ function solMethod(sym, symRow) {
 function txParams(given) {
     ["value", "gasPrice", "gasLimit"].forEach(function(param) {
         if (param in given) {
-            // toString is necessary for our defined types
-            // the (16) is harmless for Address and Bytes, necessary for Int
-            this[param] = given[param].toString(16);
+            this[param] = "0x" + Int(given[param]).toString(16);
         }
     }.bind(this))
     return this;
