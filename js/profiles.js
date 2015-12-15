@@ -28,6 +28,7 @@ var profiles = {
         "serverURI" : "https://strato-dev.blockapps.net",
         "pollEveryMS" : 500,
         "pollTimeoutMS" : 10000,
+        "pollDelayMS" : 500,
         "gasPrice" : ethValue(1).in("wei"),
         "gasLimit" : 3141592,
         "multiTXaddr" : "9459cd601c609ff5251a6fa500ba1c9b8bd8d45a"
@@ -36,7 +37,9 @@ var profiles = {
     {
         "serverURI" : "http://strato-live.blockapps.net",
         "pollEveryMS" : 1000,
+        "pollDelayMS" : 500,
         "pollTimeoutMS" : 30000,
+
         "gasPrice" : ethValue(1).in("szabo"),
         "gasLimit" : 1e6
     }

@@ -13,8 +13,8 @@ function pollPromise(promiseFn) {
                 return Promise.resolve().delay(defaults.pollEveryMS).then(doPoll);
             });
     }
-    
-    return doPoll().timeout(defaults.pollTimeoutMS);
+    console.log('delaying MS: ' + 1000) // if I use defaults.pollDelayMS then I get undefined, even though it is defined in profiles.js
+    return Promise.resolve().delay(1000).then(doPoll);
 }
 
 module.exports.NotDoneError = NotDoneError;
