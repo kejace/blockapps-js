@@ -39,8 +39,8 @@
         "browser-request": "",
         "crypto-js": ">=3.1",
         "enum": "",
-        "ethereumjs-tx": "0.6.7",
-        "ethereumjs-util": "",
+        "ethereumjs-tx": "kejace/ethereumjs-tx",
+        "ethereumjs-util": "kejace/ethereumjs-util",
         "request": "",
         "secp256k1-browserify": "",
         "string": ""
