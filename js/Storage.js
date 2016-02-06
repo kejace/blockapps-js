@@ -12,30 +12,30 @@ function Storage(address) {
 }
 Storage.prototype = {
     "address" : "",
-    "getSubKey" : getSubKey,
-    "getKeyRange" : getKeyRange,
+    "getKey" : getKey,
+    "getRange" : getRange,
     "constructor" : Storage
 };
 
-function getSubKey(key, start, size) {
-    var promise = storageQuery({"keyhex":key, "address":this.address});
-    return promise.catch(NotDoneError, function() {
-        return [{"key" : key, "value" : "0"}];
-    }).get(0).then(function(storageItem) {
-        var keyValue = EthWord(storageItem.value);
-        return keyValue.slice(32 - (start + size), 32 - start);
-    });
+function getKey(key) {
+    return storageQuery({"keyhex":key, "address":this.address}).
+        catch(NotDoneError, function() {
+            return [{"key" : key, "value" : "0"}];
+        }).
+        get(0).
+        get("value").
+        then(EthWord);
 }
 
-function getKeyRange(start, itemsNum) {
-    var first = Int("0x" + start);
-    var maxKey = first.plus(itemsNum - 1);
-    var promise = storageQuery({
+function getRange(start, bytes) {
+    var first = start.over(32); // Rounding down by 32
+    var itemsNum = Math.ceil((bytes + 31)/32); // Rounding up by 32
+    var last = first.plus(itemsNum - 1);
+    return storageQuery({
         "minkey":first.toString(10),
-        "maxkey":maxKey.toString(10),
+        "maxkey":last.toString(10),
         "address":this.address
-    });
-    return promise.catch(NotDoneError, function() {
+    }).catch(NotDoneError, function() {
         return [];
     }).then(function(storageQueryResponse){
         var keyVals = {};

@@ -35,6 +35,10 @@ function HTTPQuery(queryPath, params) {
         options.method = "POST";
         options.body = params.data;
         break;
+    case "postData":
+        options.method = "POST";
+        options.formData = params.postData;
+        break;
     default:
         throw new Error(
             "HTTPQuery(_, params): params must be of the form " +

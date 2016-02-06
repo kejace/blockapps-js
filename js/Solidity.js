@@ -5,45 +5,65 @@ var Int = require("./Int.js");
 var Transaction = require("./Transaction.js");
 var Storage = require("./Storage.js");
 var EthWord = Storage.Word;
-var sha3 = require("./Crypto").sha3;
 var Promise = require('bluebird');
 var nodeEnum = require('enum');
 
-var solidityType = require("./solidityType.js");
-var readSolVar = solidityType.readSolVar;
-var readInput = solidityType.readInput;
-var solMethod = solidityType.solMethod;
-var mapArg = solidityType.mapArg;
-var isDynamic = solidityType.isDynamic;
-var dynamicRow = solidityType.dynamicRow;
+var readStorageVar = require("./solidity/storage.js");
+var solUtil = require("./solidity/util.js");
+var solMethod = require("./solidity/functions.js");
 
 module.exports = Solidity;
-function Solidity(code) {
-    if (!(this instanceof Solidity)) {
-        return new Solidity(code);
+
+// string argument as in solc(code, _)
+// object argument as in solc(_, dataObj)
+// Solidity(x :: string | object) = {
+//   <contract name> : {
+//     bin : <hex string>,
+//     xabi : <solidity-abi response>
+//   } :: Solidity
+//   ...
+// }
+// If only one object given as "code", collapses to
+// { name : <contract name>, _ :: Solidity }
+function Solidity(x) {
+    var code = "";
+    var dataObj = {};
+    switch (typeof x) {
+    case "string" :
+        code = x;
+        break;
+    case "object" :
+        dataObj = x;
+        break;
     }
-    
-    return solc(code).then(function(x) {
-        var result = Object.create(Solidity.prototype);
-        result.code = code;
-        result.name = x.name;
-        result.vmCode = x.vmCode;
-        result.symTab = x.symTab;
-        return result;
-    }).catch(function(e) {
-        throw "Solidity(code): " + e;
-    });
+    return Promise.
+        join(solc(code, dataObj), extabi(code, dataObj), function(solcR, xabiR) {
+            var result = {};
+            var names = Object.keys(xabiR);
+            names.map(function(name) {
+                var s = Object.create(Solidity.prototype);
+                s.bin = solcR[name].bin;
+                s.xabi = xabiR[name];
+                result[name] = s;
+            });
+            // Backwards compatibility
+            if (code.length > 0 && names.length == 1) {
+                name = names[0];
+                result = result[name]
+                result.name = name;
+            }
+
+            return result;
+        });
 }
 Solidity.prototype = {
-    "code" : "",
-    "name" : "",
-    "vmCode" : null,
-    "symTab" : null,
+    "bin" : null,
+    "xabi" : null,
     "constructor" : Solidity,
     "newContract" : SolContract,
 };
 
-// txParams = {value, gasPrice, gasLimit} privkey
+// txParams = {value, gasPrice, gasLimit}
 function SolContract(privkey, txParams) {
     var solObj = this;
     if (txParams === undefined) {
@@ -63,14 +83,14 @@ function SolContract(privkey, txParams) {
 module.exports.attach = attach;
 function attach(metadata) {
     var error = "Can only attach an Ethereum account to objects " +
-        "{code, name, vmCode, symTab, [address]}";
+        "{bin, xabi[, address]}";
 
     if (!(metadata instanceof Object)) {
         throw error;
     }
     
     var solObj = Object.create(Solidity.prototype);
-    ["code", "name", "vmCode", "symTab"].forEach(function(name){
+    ["bin", "xabi"].forEach(function(name){
         if (name in metadata) {
             solObj[name] = metadata[name];
         }
@@ -80,11 +100,11 @@ function attach(metadata) {
     });
 
     var numProps = Object.keys(metadata).length;
-    if (numProps === 4) {
+    if (numProps === 2) {
         return solObj;
     }
 
-    if (!(numProps === 5 && "address" in metadata)) {
+    if (!(numProps === 3 && "address" in metadata)) {
         throw error;
     }
 
@@ -97,126 +117,131 @@ function makeState(solObj, newAddr) {
     result.state = {};
     result.account = new Account(newAddr);
 
-    var symTab = solObj.symTab;
-    for (var sym in symTab) {
-        var symRow = symTab[sym];
-        if (!("atStorageKey" in symRow)) {
-            if (symRow["jsType"] === "Function") {
-                result.state[sym] = solMethod(sym, symRow).bind(result.account.address);
-            }
-            continue;
-        }
-        
-        Object.defineProperty(result.state, sym, {
-            get : makeSolObject(symTab, symRow, storage),
-            enumerable: true
+    var types = solObj.xabi.types
+    var funcs = solObj.xabi.funcs;
+    for (var func in funcs) {
+        var funcDef = funcs[func];
+        result.state[func] = solMethod(types, funcDef, func).bind(result.account.address);
+    }
+
+    var svars = solObj.xabi.vars;
+    for (var svar in svars) {
+        Object.defineProperty(result.state, svar, {
+            get : makeSolObject(solObj.xabi.types, svars[svar], storage)
         });
     }
+
     return result;
 }
 
-function makeSolObject(symTab, symRow, storage) {
-    switch (symRow["jsType"]) {
+function makeSolObject(typeDefs, varDef, storage) {
+    switch (varDef.type) {
     case "Mapping":
-        var mapKey = EthWord(symRow["atStorageKey"]).toString();
-        var keyRow = symRow["mappingKey"];
-        var valRow = symRow["mappingValue"];
+        var mapLoc = EthWord(varDef["atBytes"]).toString();
+        var keyType = varDef["key"];
+        var valType = varDef["value"];
         
         function doMap(x) {
-            var keyBytes = mapArg(keyRow, readInput(keyRow, x));
-            var key = sha3(keyBytes + mapKey);
-            valRow["atStorageKey"] = key;
-            return makeSolObject(symTab, valRow, storage)();
+            var arg = util.readInput(keyType, x);
+            var keyBytes;
+            switch (keyType["type"]) {
+            case "Address":
+                keyBytes = Int(x).toEthABI();
+                break;
+            case "Bool":
+                keyBytes = Int(x ? 1 : 0).toEthABI();
+            case "Int":
+                keyBytes = x.toEthABI();
+                break;
+            case "Bytes":
+                if (!keyType.dynamic) {
+                    var result = x.toString("hex");
+                    while (result.length < 64) { // nibbles
+                        result = "00" + result;
+                    }
+                    keyBytes = result;
+                }
+            }
+
+            var atBytes = sha3(keyBytes + mapLoc);
+            valType["atBytes"] = atBytes;
+            return makeSolObject(typeDefs, keyType, storage)();
         };
 
         return function() {
             return doMap;
         };
-    case "Struct":
-        var userName = symRow["solidityType"];
-        var structFields = symTab[userName]["structFields"];
-        var baseKey = Int("0x" + symRow["atStorageKey"]);
-
-        return function () {
-            var result = {};
-            for (var field in structFields) {
-                var structField = structFields[field];
-                var fieldRow = {};
-                for (var name in structFields[field]) {
-                    fieldRow[name] = structField[name];
-                }
-                var fieldKey = Int("0x" + fieldRow["atStorageKey"]);
-                var realKey = baseKey.plus(fieldKey).toString(16);
-                fieldRow["atStorageKey"] = realKey;
-                if (isDynamic(fieldRow)) {
-                    var realKey32 = EthWord(realKey).toString();
-                    fieldRow["arrayDataStart"] = sha3(realKey32);
-                }
-                result[field] = makeSolObject(symTab, fieldRow, storage)();
-            }
-            return Promise.props(result);
-        }
-    case "Enum":
-        var userName = symRow["solidityType"];
-        var enumNames = symTab[userName]["enumNames"];
-        var enumType = new nodeEnum(enumNames);
-
-        var symRow1 = {};
-        for (name in symRow) {
-            symRow1[name] = symRow[name];
-        }
-        symRow1["jsType"] = "Int";
-        symRow1["solidityType"] = "uint"
-        return function () {
-            return readSolVar(symRow1, storage).then(function(x) {
-                return enumType.get(x.valueOf());
-            })
-        }
     case "Array":
         return function () {
-            var symRow1;
-            if (isDynamic(symRow)) {
-                symRow1 = dynamicRow(symRow, storage);
+            var dynamicVarDef;
+            if (varDef.dynamic) {
+                dynamicVarDef = util.dynamicDef(varDef, storage);
             }
             else {
-                symRow1 = symRow;
+                dynamicVarDef = Promise.resolve(symRow);
             }
-            
-            return Promise.join(symRow1, function(symRow) {
-                var arrElt = symRow["arrayElement"];
-                var eltRow = {};
-                for (var name in arrElt) {
-                    eltRow[name] = arrElt[name];
-                };
-                eltRow["atStorageKey"] = symRow["atStorageKey"];
-                eltRow["atStorageOffset"] = "0x0";
 
-                var eltSize = parseInt(eltRow["bytesUsed"],16);
-                var numElts = parseInt(symRow["arrayLength"],16);
+            return dynamicVarDef.then(function(varDef) {
+                var numEntries = parseInt(varDef["length"]);
 
-                var arrayCR = parseInt(symRow["arrayNewKeyEach"],16);
-                var arrayCRSkip = (eltSize < 32 ? 1 : eltSize / 32);
+                var entryDef = varDef["entry"];
+                var entrySize = parseInt(entryDef["bytes"]);
+                var atBytesInt = Int(entryDef["atBytes"]);
+
+                var entryCopy = {}
+                for (var p in entryDef) {
+                    entryCopy[p] = entryDef[p];
+                }
 
                 var result = [];
-                while (result.length < numElts) {
-                    result.push(makeSolObject(symTab, eltRow, storage)());
-                    
-                    if (result.length % arrayCR == 0) {
-                        var oldKey = Int("0x" + eltRow["atStorageKey"]);
-                        eltRow["atStorageKey"] =
-                            oldKey.plus(arrayCRSkip).toString(16);
-                        eltRow["atStorageOffset"] = "0x0";
-                    }
-                    else {
-                        var oldOff = parseInt(eltRow["atStorageOffset"],16);
-                        eltRow["atStorageOffset"] =
-                            (eltSize + oldOff).toString(16);
-                    }
+                while (result.length < numEntries) {
+                    entryCopy["atBytes"] = atBytesInt.toString();
+                    result.push(makeSolObject(typesDef, entryCopy, storage)());
+                    atBytesInt = atBytesInt.plus(entrySize);
                 }
-                return Promise.all(result);
+                return Promise.all(result);                
             });
         }
+    case undefined:
+        var userName = varDef["typedef"];
+        var typeDef = typeDefs[userName];
+
+        switch (typeDef["type"]) {
+        case "Struct":
+            var fields = typeDef["fields"];
+            var baseKey = Int(varDef["atBytes"]);
+
+            return function () {
+                var result = {};
+                for (var name in fields) {
+                    var field = fields[name];
+                    var fieldCopy = {};
+                    for (var p in field) {
+                        fieldCopy[p] = field[p];
+                    }
+                    var fieldOffset = Int(field["atBytes"]);
+                    fieldCopy["atBytes"] = baseKey.plus(fieldOffset);
+                    result[name] = makeSolObject(typeDefs, fieldCopy, storage)();
+                }
+                return Promise.props(result);
+            }
+
+        case "Enum":
+            var names = typeDef["names"];
+            var enumType = new nodeEnum(names);
+
+            var uintDef = {
+                atBytes: varDef["atBytes"],
+                bytes: typeDef["bytes"],
+                type: "Int",
+            };
+            return function () {
+                return readSolVar(uintDef, storage).then(function(x) {
+                    return enumType.get(x.valueOf());
+                })
+            }
+        }
     default:
-        return readSolVar.bind(null, symRow, storage);
+        return readStorageVar.bind(null, varDef, storage);
     }
 }

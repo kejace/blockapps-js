@@ -2,53 +2,81 @@ var HTTPQuery = require("./HTTPQuery.js");
 var Promise = require('bluebird');
 var Address = require("./Address.js");
 var pollPromise = require("./pollPromise.js");
+var fs = require("fs");
 
-module.exports.solc = solc;
-function solc(code) {
-    if (typeof code !== "string") {
-        throw Promise.OperationalError("code must be a string");
+function streamFile(name, maybeContents) {
+    switch (typeof maybeContents) {
+    case "undefined" :
+        return fs.createReadStream(name);
+        break;
+    case "string":
+        return {
+            value: maybeContents,
+            options: {
+                filename: name
+            }
+        }
+        break;
     }
-    return HTTPQuery("/solc", {"post": {"src":code}}).
-        then(function(solcResponse) {
-            if ("error" in solcResponse) {
-                throw Promise.OperationalError(solcResponse.error);
-            }
-            if (solcResponse["contracts"].length != 1) {
-                throw Promise.OperationalError(
-                    "Code must (currently) define one and only one contract."
-                );
-            }
-            else {
-                var symTab0 = solcResponse["xabis"];
-                var contractName = Object.keys(symTab0)[0];
-                return {
-                    "vmCode" : solcResponse["contracts"][0]["bin"],
-                    "symTab" : symTab0[contractName],
-                    "name"   : contractName
-                };
-            }
-        });
 }
 
-module.exports.extabi = extabi;
-function extabi(code) {
-    if (typeof code !== "string") {
-        throw Promise.OperationalError("code must be a string");
+function prepPostData (dataObj) {
+    dataObjOpts = dataObj[options];
+    for (opt in dataObjOpts) {
+        postDataObj[opt] = dataObjOpts[opt];
     }
-    return HTTPQuery("/extabi", {"post": {"src":code}}).
-        then(function(extabi) {
-            if (Object.keys(extabi).length != 1) {
-                throw Promise.OperationalError(
-                    "Code must (currently) define one and only one contract."
-                );            
-            }
-            else {
-                return extabi;
-            }
-        });
+    delete dataObj[options];
+    
+    for (name in dataObj) {
+        postDataNameArr = [];
+        dataObjName = dataObj[name];
+        for (fname in dataObjName) {
+            postDataNameArr.push(streamFile(fname, dataObjName[fname]));
+        }
+        postDataObj[name] = postDataNameArr;
+    }
+    return postDataObj;
+};
+
+function postDataCommon(route, dataObj) {
+   return HTTPQuery(route, {"postData" : prepPostData(dataObj)});
 }
 
-module.exports.faucet = faucet;
+function solcCommon(route, code, dataObj) {
+    if (!("options" in dataObj)) {
+        dataObj[options] = {};
+    }
+    dataObj[options]["src"] = code;
+    return postDataCommon(route, dataObj);
+}
+
+// solc(code :: string, {
+//   main : { <name> : (undefined | code :: string) ...},
+//   import : { <name> : (undefined | code :: string) ...},
+//   options : {
+//     optimize, add-std, link: flags for "solc" executable
+//     optimize-runs, libraries: options with arguments for "solc" executable
+//   }
+// }) = {
+//   <contract name> : {
+//     abi : <solidity contract abi>,
+//     bin : <hex string>
+//   } ...
+// }
+function solc(code, dataObj) {
+    return solcCommon("/solc", code, dataObj);
+}
+
+// extabi(code :: string, {
+//   main : { <name> : (undefined | code :: string) ...},
+//   import : { <name> : (undefined | code :: string) ...}
+// }) = {
+//   <contract name> : <solidity-abi response> ...
+// }
+function extabi(code, dataObj) {
+    return solcCommon("/extabi", code, dataObj);
+}
+
 function faucet(address) {
     var addr = Address(address).toString();
     return HTTPQuery("/faucet", {"post": {"address" : addr}}).then(function() {
@@ -61,7 +89,6 @@ function faucet(address) {
     }).return()
 }
 
-module.exports.login = login;
 // loginObj: email, app, loginpass
 function login(loginObj, address) {
     if (typeof loginObj !== "object") {
@@ -73,7 +100,6 @@ function login(loginObj, address) {
     return HTTPQuery("/login", {"post": loginObj});
 }
 
-module.exports.wallet = wallet;
 function wallet(loginObj, enckey) {
     if (typeof loginObj !== "object" || typeof enckey !== "string" ||
         !enckey.match(/^[0-9a-fA-F]*$/)) {
@@ -86,7 +112,6 @@ function wallet(loginObj, enckey) {
     return HTTPQuery("/wallet", {"post": loginObj});
 }
 
-module.exports.developer = developer;
 function developer(loginObj) {
     if (typeof loginObj !== "object") {
         throw Promise.OperationalError(
@@ -96,7 +121,6 @@ function developer(loginObj) {
     return HTTPQuery("/developer", {"post": loginObj});
 }
 
-module.exports.register = register;
 // appObj: developer, appurl, repourl
 function register(loginObj, appObj) {
     if (typeof loginObj !== "object") {
@@ -115,7 +139,6 @@ function register(loginObj, appObj) {
     return HTTPQuery("/register", {"post": loginObj});
 }
 
-module.exports.block = block;
 function block(blockQueryObj) {
     if (typeof blockQueryObj !== "object") {
         throw Promise.OperationalError(
@@ -132,7 +155,6 @@ function block(blockQueryObj) {
     });
 }
 
-module.exports.blockLast = blockLast;
 function blockLast(n) {
     n = Math.ceil(n);
     if (n <= 0) {
@@ -141,7 +163,6 @@ function blockLast(n) {
     return HTTPQuery("/block/last/" + n, {"get":{}});
 }
 
-module.exports.account = account;
 function account(accountQueryObj) {
     if (typeof accountQueryObj !== "object") {
         throw Promise.OperationalError(
@@ -158,12 +179,10 @@ function account(accountQueryObj) {
     });
 }
 
-module.exports.accountAddress = accountAddress;
 function accountAddress(address) {
     return account({"address": Address(address).toString()}).get(0);
 }
 
-module.exports.submitTransaction = submitTransaction;
 function submitTransaction(txObj) {
     return HTTPQuery("/transaction", {"data":txObj}).then(function(){
         return pollPromise(transactionResult.bind(null, txObj.partialHash))
@@ -191,7 +210,6 @@ function submitTransaction(txObj) {
     });
 }
 
-module.exports.transaction = transaction;
 function transaction(transactionQueryObj) {
     if (typeof transactionQueryObj !== "object") {
         throw Promise.OperationalError(
@@ -209,7 +227,6 @@ function transaction(transactionQueryObj) {
     });
 }
 
-module.exports.transactionLast = transactionLast;
 function transactionLast(n) {
     n = Math.ceil(n);
     if (n <= 0) {
@@ -218,7 +235,6 @@ function transactionLast(n) {
     return HTTPQuery("/transaction/last/" + n, {"get":{}});
 }
 
-module.exports.transactionResult = transactionResult;
 function transactionResult(txHash) {
     if (typeof txHash !== "string" || !txHash.match(/^[0-9a-fA-F]*$/)) {
         throw Promise.OperationalError("txHash must be a hex string");
@@ -242,7 +258,6 @@ function transactionResult(txHash) {
     });
 } 
 
-module.exports.storage = storage;
 function storage(storageQueryObj) {
     if (typeof storageQueryObj !== "object") {
         throw Promise.OperationalError(
@@ -262,7 +277,26 @@ function storage(storageQueryObj) {
     });
 }
 
-module.exports.storageAddress = storageAddress;
 function storageAddress(address) {
     return storage({"address": Address(address).toString()}).get(0);
 }
+
+module.exports = {
+    solc: solc,
+    extabi: extabi,
+    faucet: faucet,
+    login: login,
+    wallet: wallet,
+    developer: developer,
+    register: register,
+    block: block,
+    blockLast: blockLast,
+    account: account,
+    accountAddress: accountAddress,
+    submitTransaction: submitTransaction:
+    transaction: transaction
+    transactionLast: transactionLast,
+    transactionResult: transactionResult,
+    storage: storage,
+    storageAddress: storageAddress
+};
