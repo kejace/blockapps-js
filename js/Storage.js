@@ -32,7 +32,7 @@ function getRange(start, bytes) {
     var first = start.over(32); // Rounding down by 32
     var itemsNum = Math.ceil((bytes + 31)/32); // Rounding up by 32
     var last = first.plus(itemsNum - 1);
-    var starti = start.minus(first.times(32)).valueOf();
+    var starti = start.mod(32).valueof();
     return storageQuery({
             "minkey":first.toString(10),
             "maxkey":last.toString(10),
