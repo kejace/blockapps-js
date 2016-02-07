@@ -4,6 +4,7 @@ var submitTransaction = require("./Routes.js").submitTransaction;
 var Account = require("./Account.js");
 var Address = require("./Address.js");
 var Int = require("./Int.js");
+var errors = require("./errors.js");
 
 module.exports = Transaction;
 module.exports.defaults = {
@@ -14,52 +15,66 @@ module.exports.defaults = {
 //   data:, value:, gasPrice:, gasLimit:
 // }
 function Transaction(argObj) {
-    var tx = new ethTransaction();
-    if (argObj === undefined) {
-        argObj = module.exports.defaults;
+    function prepare() {
+        var tx = new ethTransaction();
+        if (argObj === undefined) {
+            argObj = module.exports.defaults;
+        }
+        
+        tx.gasPrice = "0x" + Int(
+            !("gasPrice" in argObj) ? module.exports.defaults.gasPrice : argObj.gasPrice
+        ).toString(16);
+        tx.gasLimit = "0x" + Int(
+            !("gasLimit" in argObj) ? module.exports.defaults.gasLimit : argObj.gasLimit
+        ).toString(16);
+        tx.value    = "0x" + Int(
+            !("value" in argObj) ? module.exports.defaults.value : argObj.value
+        ).toString(16);
+        tx.data = "0x" + argObj.data;
+        
+        if (argObj.to !== undefined) {
+            tx.to = "0x" + Address(argObj.to).toString();
+        }
+        
+        Object.defineProperty(tx, "partialHash", {
+            get : function() {
+                return bufToString(this.hash());
+            },
+            enumerable : true
+        });
+        
+        tx.toJSON = txToJSON;
+        tx.send = sendTX;
+        return tx;
     }
-    
-    tx.gasPrice = "0x" + Int(
-        !("gasPrice" in argObj) ? module.exports.defaults.gasPrice : argObj.gasPrice
-    ).toString(16);
-    tx.gasLimit = "0x" + Int(
-        !("gasLimit" in argObj) ? module.exports.defaults.gasLimit : argObj.gasLimit
-    ).toString(16);
-    tx.value    = "0x" + Int(
-        !("value" in argObj) ? module.exports.defaults.value : argObj.value
-    ).toString(16);
-    tx.data = "0x" + argObj.data;
-    
-    if (argObj.to !== undefined) {
-        tx.to = "0x" + Address(argObj.to).toString();
-    }
-    tx.toJSON = txToJSON;
-    
-    Object.defineProperty(tx, "partialHash", {
-        get : function() {
-            return bufToString(this.hash());
-        },
-        enumerable : true
-    });
-    
-    tx.send = function(privKeyFrom, addressTo) {
+    return Promise.try(prepare).
+        catch.apply(null, errors.addTag("Transaction")).
+        value();
+}
+
+function sendTX(privKeyFrom, addressTo) {
+    function prepare() {
         privKeyFrom = new Buffer(privKeyFrom,"hex");
         var fromAddr = Address(privateToAddress(privKeyFrom));
-        tx.from = Address(fromAddr).toString();
+        this.from = Address(fromAddr).toString();
         if (addressTo === null) {
-            tx.to = "";
+            this.to = "";
         }
         else if (addressTo !== undefined) {
-            tx.to = "0x" + Address(addressTo).toString();
+            this.to = "0x" + Address(addressTo).toString();
         }
-
-        return Account(fromAddr).nonce.then(function(nonce) {
-            tx.nonce = "0x" + nonce.toString(16);
-            tx.sign(privKeyFrom);
-            return submitTransaction(tx);
-        })
+        return fromAddr;
     }
-    return tx;
+
+    return Promise.try(prepare.bind(this)).
+        then(Account).
+        get(nonce).
+        then((function(nonce) {
+            this.nonce = "0x" + nonce.toString(16);
+            this.sign(privKeyFrom);
+            return submitTransaction(this);
+        }).bind(this)).
+        catch.apply(null, errors.addTag("Transaction"));
 }
 
 function txToJSON() {

@@ -1,6 +1,7 @@
 var Int = require("../Int.js");
 var Transaction = require("../Transaction.js");
 var util = require("./util.js");
+var errors = require("../errors.js");
 
 function solMethod(typesDef, funcDef, name) {
     var args = funcDef["args"];
@@ -21,16 +22,22 @@ function solMethod(typesDef, funcDef, name) {
         {
             for (var arg in args) {
                 if (firstArg[arg] === undefined) {
-                    throw "Solidity function \"" + name + "\": " +
-                        "arguments must include \"" + arg + "\"";
+                    throw errors.tagError(
+                        "Solidity",
+                        "Solidity function \"" + name + "\": " +
+                            "arguments must include \"" + arg + "\""
+                    );
                 }
                 argArr.push(util.readInput(types, args[arg], firstArg[arg]));
             }
         }
         else {
             if (arguments.length !== args.length) {
-                throw "Solidity function \"" + name + "\": " +
-                    "takes exactly " + args.length + " arguments";
+                throw errors.tagError(
+                    "Solidity",
+                    "Solidity function \"" + name + "\": " +
+                        "takes exactly " + args.length + " arguments"
+                );
             }
             argArr = argsList.map(function(arg, i) {
                 return util.readInput(types, arg, arguments[i]);

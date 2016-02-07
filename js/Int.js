@@ -1,41 +1,48 @@
 var bigInt = require('big-integer');
 var bigNum = require('bignumber.js');
 var extendType = require("./extendType.js");
+var Promise = require("bluebird");
+var addTag = require("./errors.js").addTag;
 
 function Int(x) {
-    if (Int.isInstance(x)) {
-        return x;
-    }
+    function prepare() {
+        if (Int.isInstance(x)) {
+            return x;
+        }
 
-    var result;
-    if (typeof x === "number") {
-        result = bigInt(x);
-    }
-    else if (typeof x === "string") {
-        if (x.slice(0,2) === "0x") {
-            x = x.slice(2);
-            result = bigInt(x,16);
+        var result;
+        if (typeof x === "number") {
+            result = bigInt(x);
+        }
+        else if (typeof x === "string") {
+            if (x.slice(0,2) === "0x") {
+                x = x.slice(2);
+                result = bigInt(x,16);
+            }
+            else {
+                result = bigInt(x,10);
+            }
+        }
+        else if (Buffer.isBuffer(x)) {
+            if (x.length == 0) {
+                result = bigInt(0);
+            }
+            else {
+                result = bigInt(x.toString("hex"),16);
+            }
         }
         else {
-            result = bigInt(x,10);
+            result = bigInt(x.toString(), 10);
         }
+        
+        var c = result.constructor;
+        result = extendType(result, Int.prototype);
+        Object.defineProperty(result, "bigIntType", {value: c});
+        return result;
     }
-    else if (Buffer.isBuffer(x)) {
-        if (x.length == 0) {
-            result = bigInt(0);
-        }
-        else {
-            result = bigInt(x.toString("hex"),16);
-        }
-    }
-    else {
-        result = bigInt(x.toString(), 10);
-    }
-    
-    var c = result.constructor;
-    result = extendType(result, Int.prototype);
-    Object.defineProperty(result, "bigIntType", {value: c});
-    return result;
+    return Promise.try(prepare).
+        catch.apply(null, addTag("Int")).
+        value();
 }
 
 Object.defineProperties(Int.prototype, {

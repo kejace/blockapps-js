@@ -12,6 +12,8 @@ var readStorageVar = require("./solidity/storage.js");
 var solUtil = require("./solidity/util.js");
 var solMethod = require("./solidity/functions.js");
 
+var errors = require("./errors.js");
+
 module.exports = Solidity;
 
 // string argument as in solc(code, _)
@@ -54,7 +56,8 @@ function Solidity(x) {
             }
 
             return result;
-        });
+        }).
+        catch.apply(null, errors.addTag("Solidity"));
 }
 Solidity.prototype = {
     "bin" : null,
@@ -70,20 +73,30 @@ function SolContract(privkey, txParams) {
         txParams = {};
     }
     txParams.data = this.vmCode;
-    return Transaction(txParams).send(privkey, null).get("contractsCreated").
+    return Transaction(txParams).send(privkey, null).
+        get("contractsCreated").
         tap(function(addrList){
             if (addrList.length !== 1) {
-                throw "code must create one and only one account";
+                throw errors.tagError(
+                    "Solidity",
+                    "code must create one and only one account"
+                );
             }
-        }).get(0).then(Address).then(function(newAddr) {
+        }).
+        get(0).
+        then(Address).
+        then(function(newAddr) {
             return makeState(solObj, newAddr);
-        });
+        }).
+        catch.apply(null, errors.addTag("Solidity"));
 };
 
 module.exports.attach = attach;
 function attach(metadata) {
-    var error = "Can only attach an Ethereum account to objects " +
-        "{bin, xabi[, address]}";
+    var error = errors.tagError(
+        "Solidity",
+        "Can only attach an Ethereum account to objects {bin, xabi[, address]}"
+    );
 
     if (!(metadata instanceof Object)) {
         throw error;
@@ -121,7 +134,7 @@ function makeState(solObj, newAddr) {
     var funcs = solObj.xabi.funcs;
     for (var func in funcs) {
         var funcDef = funcs[func];
-        result.state[func] = solMethod(types, funcDef, func).bind(result.account.address);
+        result.state[func] = solMethod(types, funcDef, func).bind(newAddr);
     }
 
     var svars = solObj.xabi.vars;

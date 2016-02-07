@@ -3,72 +3,94 @@ var EthWord = require("../Storage.js").Word;
 var Int = require("../Int.js");
 var Promise = require('bluebird');
 var sha3 = require("../Crypto").sha3;
+var errors = require("../errors.js");
 
 function readInput(typesDef, varDef, x) {
-    switch(varDef["type"]) {
-    case "Address":
-        return Address(x);
-    case "Array":
-        return x.map(readInput.bind(null, typesDef, varDef["entry"]));
-    case "Bool":
-        return Boolean(x);
-    case "Bytes":
-        if (typeof x !== "string") {
-            throw "Solidity value: type Bytes: takes hex string input";
-        }
-        if (x.slice(0,2) === "0x") {
-            x = x.slice(2);
-        }
-        if (x.length % 2 != 0) {
-            x = "0" + x;
-        }
-
-        if (!isDynamic(varDef)) {
-            var bytes = parseInt(varDef["bytes"]);
-            if (x.length !== 2 * bytes) {
-                throw "Solidity value: type bytes" + bytes + ": " +
-                    bytes + " bytes (" + 2*bytes + " hex digits) required";
+    function prepare() {
+        switch(varDef["type"]) {
+        case "Address":
+            return Address(x);
+        case "Array":
+            return x.map(readInput.bind(null, typesDef, varDef["entry"]));
+        case "Bool":
+            return Boolean(x);
+        case "Bytes":
+            if (typeof x !== "string") {
+                throw errors.tagError(
+                    "Solidity",
+                    "bytes type takes hex string input"
+                );
             }
-        }
-
-        return new Buffer(x, "hex");
-    case "Int":
-        return Int(x);
-    case "String":
-        return x;
-    case undefined:
-        var typeDef = types[varDef["typedef"]];
-        switch (typeDef["type"]) {
-        case "Struct":
-            if (typeof x !== "object") {
-                throw "Solidity value: type Struct: takes object input";
+            if (x.slice(0,2) === "0x") {
+                x = x.slice(2);
+            }
+            if (x.length % 2 != 0) {
+                x = "0" + x;
             }
 
-            var fields = typeDef["structFields"];
-            var result = {};
-            for (name in x) {
-                var field = fields[name];
-                if (field === undefined) {
-                    throw "Solidity value: type Struct: " +
-                        "does not have a field \"" + name + "\"";
-                }
-                result[name] = readInput(field, x[name]);
-            }
-
-            for (fieldName in fields) {
-                if (!(fieldName in result)) {
-                    throw "Solidity value: type Struct: " +
-                        "missing field \"" + fieldName + "\"";
+            if (!isDynamic(varDef)) {
+                var bytes = parseInt(varDef["bytes"]);
+                if (x.length !== 2 * bytes) {
+                    throw errors.tagError(
+                        "Solidity",
+                        "bytes" + bytes + "type requires " +
+                            bytes + " bytes (" + 2*bytes + " hex digits)"
+                    );
                 }
             }
 
-            return result;
-        case "Enum":
+            return new Buffer(x, "hex");
+        case "Int":
+            return Int(x);
+        case "String":
             return x;
+        case undefined:
+            var typeDef = types[varDef["typedef"]];
+            switch (typeDef["type"]) {
+            case "Struct":
+                if (typeof x !== "object") {
+                    throw errors.tagError(
+                        "Solidity",
+                        "struct type takes object input"
+                    );
+                }
+
+                var fields = typeDef["structFields"];
+                var result = {};
+                for (name in x) {
+                    var field = fields[name];
+                    if (field === undefined) {
+                        throw errors.tagError(
+                            "Solidity",
+                            "struct type does not have a field \"" + name + "\""
+                        );
+                    }
+                    result[name] = readInput(field, x[name]);
+                }
+
+                for (fieldName in fields) {
+                    if (!(fieldName in result)) {
+                        throw error.tagError(
+                            "Solidity",
+                            "struct type input missing field \"" + fieldName + "\""
+                        );
+                    }
+                }
+
+                return result;
+            case "Enum":
+                return x;
+            }
+        default:
+            throw errors.tagError(
+                "Solidity",
+                "cannot read type " + type + " from input"
+            );
         }
-    default:
-        throw "Solidity value: cannot read type " + type + " from input";
     }
+    return Promise.try(prepare).
+        catch.apply(then, errors.addTag("Solidity")).
+        value();
 }
 
 function dynamicDef(varDef, storage) {
