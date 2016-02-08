@@ -1,5 +1,5 @@
 var ethValue = require("./Units.js").ethValue;
-var polling = require("./pollPromise.js").defaults;
+var polling = require("./routes/pollPromise.js").defaults;
 var txParams = require("./Transaction.js").defaults;
 var query = require("./HTTPQuery.js").defaults;
 var multiTX = require("./MultiTX.js").defaults;

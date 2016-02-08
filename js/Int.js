@@ -2,7 +2,7 @@ var bigInt = require('big-integer');
 var bigNum = require('bignumber.js');
 var extendType = require("./extendType.js");
 var Promise = require("bluebird");
-var addTag = require("./errors.js").addTag;
+require("./errors.js");
 
 function Int(x) {
     function prepare() {
@@ -40,9 +40,7 @@ function Int(x) {
         Object.defineProperty(result, "bigIntType", {value: c});
         return result;
     }
-    return Promise.try(prepare).
-        catch.apply(null, addTag("Int")).
-        value();
+    return Promise.try(prepare).tagExcepts("Int").value();
 }
 
 Object.defineProperties(Int.prototype, {

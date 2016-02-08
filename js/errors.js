@@ -1,3 +1,5 @@
+var Promise = require("bluebird");
+
 function isString(x) {
     return (typeof x === "string");
 }
@@ -21,7 +23,7 @@ function matchTag(tag) {
         );
     }
     return function(e) {
-        return "errorTags" in e && tag in e.errorTags;
+        return ("errorTags" in e) && (tag in e.errorTags);
     };
 }
 
@@ -42,7 +44,11 @@ function tagError(tag, msg) {
                 "'" + prefix.constructor.name + "'"
         );
     }
-    return { errorTags: [tag], message: msg };
+    return {
+        errorTags: [tag],
+        message: msg,
+        toString: throwMessage(prefixMessage(errorTags[0], message))
+    };
 }
 
 function pushTag(tag, prefix) {
@@ -89,6 +95,9 @@ function changeTag(tag1, tag2) {
     ];
 }
 
+Promise.prototype.tagExcepts = function(tag) {
+    return this.catch.apply(this, addTag(tag));
+}
 
 module.exports = {
     tagError: tagError,

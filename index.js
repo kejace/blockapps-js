@@ -8,7 +8,7 @@ module.exports.ethbase = {
 }
 module.exports.routes = require("./js/Routes.js");
 module.exports.query  = require("./js/HTTPQuery.js").defaults;
-module.exports.polling = require("./js/pollPromise.js").defaults;
+module.exports.polling = require("./js/routes/pollPromise.js").defaults;
 module.exports.Solidity = require("./js/Solidity.js");
 module.exports.MultiTX = require("./js/MultiTX.js");
 module.exports.setProfile = require("./js/profiles.js");

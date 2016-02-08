@@ -120,8 +120,23 @@ function castInt(varDef, x) {
     return cast(x, parseInt(varDef["bytes"]));
 }
 
+function encodingLength(varDef) {
+    if (varDef.dynamic) {
+        return undefined;
+    }
+
+    switch (varDef["type"]) {
+    case "Bytes":
+        return 32 * Math.ceil(parseInt(varDef["bytes"])/32);
+    case "Array":
+        return parseInt(varDef["length"]) * encodingLength(varDef["entry"]);
+    case "Address" : case "Bool" : case "Int" : return 32;
+    }
+}
+
 module.exports = {
     readInput: readInput,
     dynamicDef : dynamicDef,
-    castInt : castInt
+    castInt : castInt,
+    encodingLength: encodingLength
 }

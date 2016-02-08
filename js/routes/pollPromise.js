@@ -1,5 +1,5 @@
 var Promise = require('bluebird');
-var errors = require("./errors.js");
+var errors = require("../errors.js");
 
 module.exports = pollPromise;
 
@@ -10,7 +10,7 @@ module.exports.defaults = defaults;
 function pollPromise(promiseFn) {
     function doPoll() {
         return promiseFn().cancellable().
-            catch(matchTag("NotDone"), function() {
+            catch(errors.matchTag("NotDone"), function() {
                 return Promise.resolve().delay(defaults.pollEveryMS).then(doPoll);
             });
     }

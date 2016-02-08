@@ -87,12 +87,8 @@ function funcArgs(funcDef, x) {
 
 function funcArg(varDef, y) {
     switch (varDef["type"]) {
-    case "Address":
-        var result = y.toString();
-        for (var i = 0; i < 12; ++i) {
-            result = "00" + result;
-        }
-        return result;
+    case "Address": case "Int":
+        return y.toEthABI();
     case "Bool":
         var result = y ? "01" : "00";
         for (var i = 0; i < 31; ++i) {
@@ -114,8 +110,6 @@ function funcArg(varDef, y) {
         }
         
         return result;
-    case "Int":
-        return y.toEthABI();
     case "Array":
         var entries = varDef["entries"];
         if (entries === undefined) {
@@ -248,19 +242,5 @@ function decodeReturn(valsDef, x) {
     return go(valsDef);
 }
 
-function encodingLength(varDef) {
-    if (varDef.dynamic) {
-        return undefined;
-    }
-
-    switch (varDef["type"]) {
-    case "Bytes":
-        return 32 * Math.ceil(parseInt(varDef["bytes"])/32);
-    case "Array":
-        return parseInt(varDef["length"]) * encodingLength(varDef["entry"]);
-    case "Address" : case "Bool" : case "Int" : return 32;
-    }
-}
-
 module.exports = solMethod;
-module.exports.ethABIBytes = encodingLength;
+module.exports.decodeReturn = decodeReturn;

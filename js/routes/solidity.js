@@ -1,7 +1,7 @@
-var HTTPQuery = require("./HTTPQuery.js");
+var HTTPQuery = require("../HTTPQuery.js");
 var Promise = require('bluebird');
 var fs = require("fs");
-var errors = require("./errors.js")
+var errors = require("../errors.js")
 
 function streamFile(name, maybeContents) {
     if (!isString(name)) {
@@ -37,7 +37,7 @@ function prepPostData (dataObj) {
         postDataObj[name] = postDataNameArr;
     }
     return postDataObj;
-};
+}
 
 function postDataCommon(route, dataObj) {
    return HTTPQuery(route, {"postData" : prepPostData(dataObj)});
@@ -67,7 +67,7 @@ function solcCommon(route, code, dataObj) {
 // }
 function solc(code, dataObj) {
     return solcCommon("/solc", code, dataObj).
-        catch.apply(null, errors.changeTag("solcCommon", "solc")).
+        catch.apply(null, errors.changeTag("solcCommon", "solc"));
 }
 
 // extabi(code :: string, {
@@ -78,7 +78,7 @@ function solc(code, dataObj) {
 // }
 function extabi(code, dataObj) {
     return solcCommon("/extabi", code, dataObj).
-        catch.apply(null, errors.changeTag("solcCommon", "extabi")).
+        catch.apply(null, errors.changeTag("solcCommon", "extabi"));
 }
 
 module.exports = {

@@ -21,7 +21,7 @@ function HTTPQuery(queryPath, params) {
         var paramsError = tagError(
             "HTTPQuery",
             "query object must have exactly one field, " +
-                "from among get|post|data|postData";
+                "from among get|post|data|postData"
         );
         
         if (Object.keys(params).length != 1) {

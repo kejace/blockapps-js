@@ -1,8 +1,8 @@
-var HTTPQuery = require("./HTTPQuery.js");
+var HTTPQuery = require("../HTTPQuery.js");
 var Promise = require('bluebird');
-var Address = require("./Address.js");
+var Address = require("../Address.js");
 var pollPromise = require("./pollPromise.js");
-var errors = require("./errors.js")
+var errors = require("../errors.js")
 
 function faucet(address) {
     var addr;

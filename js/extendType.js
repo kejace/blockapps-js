@@ -1,9 +1,9 @@
 function extendType(x, y) {
     var pType = Object.getPrototypeOf(x);
     var yProps = getDescriptors(y);
-    var qType = Object.create(ptype, yProps);
+    var qType = Object.create(pType, yProps);
     var xProps = getDescriptors(x);
-    return Object.create(qtype, xProps);    
+    return Object.create(qType, xProps);    
 }
 
 function getDescriptors(x) {

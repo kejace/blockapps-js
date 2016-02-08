@@ -1,7 +1,7 @@
-var HTTPQuery = require("./HTTPQuery.js");
+var HTTPQuery = require("../HTTPQuery.js");
 var Promise = require('bluebird');
-var Address = require("./Address.js");
-var errors = require("./errors.js")
+var Address = require("../Address.js");
+var errors = require("../errors.js")
 
 // loginObj: email, app, loginpass
 function login(loginObj, address) {

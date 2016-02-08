@@ -1,6 +1,7 @@
 var Int = require("./Int.js");
 var errors = require("./errors.js");
 var Promise = require("bluebird");
+var extendType = require("./extendType.js");
 var addTag = require("./errors.js").addTag;
 
 module.exports = Address;
@@ -58,9 +59,27 @@ function Address(x) {
             return Buffer.prototype.toString.call(this,"hex");
         };
         result.isAddress = true;
-        return result;
+
+        return extendType(result, Address.prototype);
     }
     return Promise.try(prepare).
         catch.apply(null, addTag("Address")).
         value();
+}
+
+Address.prototype = Object.create(Buffer.prototype, {
+    toEthABI: {value: toEthABI, enumerable: true},
+    constructor: {value: Address}
+});
+
+Address.isInstance = function(x) {
+    return x instanceof Address;
+}
+
+function toEthABI() {
+    var result = this.toString();
+    for (var i = 0; i < 12; ++i) {
+        result = "00" + result;
+    }
+    return result;
 }
