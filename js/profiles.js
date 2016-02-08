@@ -32,7 +32,7 @@ var profiles = {
         "gasLimit" : 3141592,
         "multiTXaddr" : "9459cd601c609ff5251a6fa500ba1c9b8bd8d45a"
     },
-    "strato-live":
+    "ethereum-frontier":
     {
         "serverURI" : "http://strato-live.blockapps.net",
         "pollEveryMS" : 1000,

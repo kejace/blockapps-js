@@ -6,7 +6,7 @@ var sha3 = require("../Crypto").sha3;
 var errors = require("../errors.js");
 
 function readInput(typesDef, varDef, x) {
-    function prepare() {
+    try {
         switch(varDef["type"]) {
         case "Address":
             return Address(x);
@@ -88,9 +88,9 @@ function readInput(typesDef, varDef, x) {
             );
         }
     }
-    return Promise.try(prepare).
-        catch.apply(then, errors.addTag("Solidity")).
-        value();
+    catch(e) {
+        throw errors.pushTag("Solidity")(e);
+    }
 }
 
 function dynamicDef(varDef, storage) {

@@ -1,11 +1,10 @@
 var bigInt = require('big-integer');
 var bigNum = require('bignumber.js');
 var extendType = require("./extendType.js");
-var Promise = require("bluebird");
-require("./errors.js");
+var pushTag = require("./errors.js").pushTag;
 
 function Int(x) {
-    function prepare() {
+    try {
         if (Int.isInstance(x)) {
             return x;
         }
@@ -40,7 +39,9 @@ function Int(x) {
         Object.defineProperty(result, "bigIntType", {value: c});
         return result;
     }
-    return Promise.try(prepare).tagExcepts("Int").value();
+    catch(e) {
+        throw pushTag("Int")(e);
+    }
 }
 
 Object.defineProperties(Int.prototype, {

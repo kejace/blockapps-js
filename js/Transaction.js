@@ -15,7 +15,7 @@ module.exports.defaults = {
 //   data:, value:, gasPrice:, gasLimit:
 // }
 function Transaction(argObj) {
-    function prepare() {
+    try {
         var tx = new ethTransaction();
         if (argObj === undefined) {
             argObj = module.exports.defaults;
@@ -47,9 +47,9 @@ function Transaction(argObj) {
         tx.send = sendTX;
         return tx;
     }
-    return Promise.try(prepare).
-        catch.apply(null, errors.addTag("Transaction")).
-        value();
+    catch(e) {
+        throw errors.pushTag("Transaction")(e);
+    }
 }
 
 function sendTX(privKeyFrom, addressTo) {
@@ -74,7 +74,7 @@ function sendTX(privKeyFrom, addressTo) {
             this.sign(privKeyFrom);
             return submitTransaction(this);
         }).bind(this)).
-        catch.apply(null, errors.addTag("Transaction"));
+        tagExcepts("Transaction");
 }
 
 function txToJSON() {

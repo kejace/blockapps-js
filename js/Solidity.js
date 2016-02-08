@@ -57,7 +57,7 @@ function Solidity(x) {
 
             return result;
         }).
-        catch.apply(null, errors.addTag("Solidity"));
+        tagExcepts("Solidity");
 }
 Solidity.prototype = {
     "bin" : null,
@@ -88,7 +88,7 @@ function SolContract(privkey, txParams) {
         then(function(newAddr) {
             return makeState(solObj, newAddr);
         }).
-        catch.apply(null, errors.addTag("Solidity"));
+        tagExcepts("Solidity");
 };
 
 module.exports.attach = attach;

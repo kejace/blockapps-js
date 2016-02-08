@@ -1,7 +1,7 @@
 var HTTPQuery = require("../HTTPQuery.js");
 var Promise = require('bluebird');
 var Address = require("../Address.js");
-var errors = require("../errors.js")
+var errors = require("../errors.js");
 
 function block(blockQueryObj) {
     function prepare() {
@@ -22,7 +22,7 @@ function block(blockQueryObj) {
                 return blocks;
             }
         }).
-        catch.apply(null, errors.addTag("block"));
+        tagExcepts("block");
 }
 
 function blockLast(n) {
@@ -34,7 +34,7 @@ function blockLast(n) {
     }
     return Promise.try(prepare).
         then(HTTPQuery.bind(null, "/block/last/" + n, {"get":{}})).
-        catch.apply(null, errors.addTag("blockLast"));    
+        tagExcepts("blockLast");    
 }
 
 function account(accountQueryObj) {
@@ -59,12 +59,12 @@ function account(accountQueryObj) {
                 return accts;
             }
         }).
-        catch.apply(null, errors.addTag("account"));
+        tagExcepts("account");
 }
 
 function accountAddress(address) {
     return account({"address": Address(address).toString()}).get(0).
-        catch.apply(null, changeTag("account", "accountAddress"));
+        tagExcepts("accountAddress");
 }
 
 
@@ -90,12 +90,12 @@ function storage(storageQueryObj) {
                 return stor;
             }
         }).
-        catch.apply(null, addTag("storage"));
+        tagExcepts("storage");
 }
 
 function storageAddress(address) {
     return storage({"address": Address(address).toString()}).get(0).
-        catch.apply(null, changeTag("storage", "storageAddress"));
+        tagExcepts("storageAddress");
 }
 
 module.exports = {

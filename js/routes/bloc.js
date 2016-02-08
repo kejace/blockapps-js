@@ -16,7 +16,7 @@ function login(loginObj, address) {
     }
     return Promise.try(prepare).
         then(HTTPQuery.bind(null, "/login", {"post": loginObj})).
-        catch.apply(null, errors.addTag("login"));
+        tagExcepts("login");
 }
 
 function wallet(loginObj, enckey) {
@@ -33,7 +33,7 @@ function wallet(loginObj, enckey) {
     }
     return Promise.try(prepare).
         then(HTTPQuery.bind(null,"/wallet", {"post": loginObj})).
-        catch.apply(null, errors.addTag("wallet"));
+        tagExcepts("wallet");
 }
 
 function developer(loginObj) {
@@ -47,7 +47,7 @@ function developer(loginObj) {
     }
     return Promise.try(prepare).
         then(HTTPQuery.bind(null, "/developer", {"post": loginObj})).
-        catch.apply(null, errors.addTag("developer"));
+        tagExcepts("developer");
 }
 
 // appObj: developer, appurl, repourl
@@ -71,7 +71,7 @@ function register(loginObj, appObj) {
     }
     return Promise.try(prepare).
         then(HTTPQuery.bind(null, "/register", {"post": loginObj})).
-        catch.apply(null, errors.addTag("register"));
+        tagExcepts("register");
 }
 
 module.exports = {

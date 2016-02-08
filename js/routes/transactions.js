@@ -18,7 +18,7 @@ function faucet(address) {
                 "waited " + pollPromise.defaults.pollTimeoutMS / 1000 + " seconds"
             );
         }).
-        catch.apply(null, errors.addTag("faucet"));
+        tagExcepts("faucet");
 }
 
 function submitTransaction(txObj) {
@@ -33,7 +33,7 @@ function submitTransaction(txObj) {
                 "waited " + pollPromise.defaults.pollTimeoutMS / 1000 + " seconds"
             );
         }).
-        catch.apply(null, errors.addTag("submitTransaction"));
+        tagExcepts("submitTransaction");
 }
 
 function transaction(transactionQueryObj) {
@@ -58,7 +58,7 @@ function transaction(transactionQueryObj) {
                 return txs;
             }
         }).
-        catch.apply(null, errors.addTag("transaction"));
+        tagExcepts("transaction");
 }
 
 function transactionLast(n) {
@@ -70,7 +70,7 @@ function transactionLast(n) {
     }
     return Promise.try(prepare).
         then(HTTPQuery.bind(null, "/transaction/last/" + n, {"get":{}})).
-        catch.apply(null, errors.addTag("transactionLast"));
+        tagExcepts("transactionLast");
 }
 
 function transactionResult(txHash) {
@@ -114,7 +114,7 @@ function transactionResult(txHash) {
             txResult.contractsCreated = contractsCreated;
             return txResult;
         }).
-        catch.apply(null, errors.addTag("transactionResult"));
+        tagExcepts("transactionResult");
 } 
 
 module.exports = {

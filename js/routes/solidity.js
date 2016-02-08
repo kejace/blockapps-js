@@ -49,7 +49,7 @@ function solcCommon(route, code, dataObj) {
     }
     dataObj[options]["src"] = code;
     return Promise.try(postDataCommon.bind(null, route, dataObj)).
-        catch.apply(null, addTag("solcCommon"));
+        tagExcepts("solcCommon");
 }
 
 // solc(code :: string, {
@@ -66,8 +66,7 @@ function solcCommon(route, code, dataObj) {
 //   } ...
 // }
 function solc(code, dataObj) {
-    return solcCommon("/solc", code, dataObj).
-        catch.apply(null, errors.changeTag("solcCommon", "solc"));
+    return solcCommon("/solc", code, dataObj).tagExcepts("solc");
 }
 
 // extabi(code :: string, {
@@ -77,8 +76,7 @@ function solc(code, dataObj) {
 //   <contract name> : <solidity-abi response> ...
 // }
 function extabi(code, dataObj) {
-    return solcCommon("/extabi", code, dataObj).
-        catch.apply(null, errors.changeTag("solcCommon", "extabi"));
+    return solcCommon("/extabi", code, dataObj).tagExcepts("extabi");
 }
 
 module.exports = {

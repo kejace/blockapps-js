@@ -25,7 +25,7 @@ function getKey(key) {
         get(0).
         get("value").
         then(EthWord).
-        catch.apply(null, errors.addTag("Storage"));
+        tagExcepts("Storage");
 }
 
 function getRange(start, bytes) {
@@ -60,7 +60,7 @@ function getRange(start, bytes) {
             return Buffer(output.join(""),"hex");
         }).
         call("slice", starti, starti + bytes).
-        catch.apply(null, errors.addTag("Storage"));        
+        tagExcepts("Storage");        
 }
 
 function pushZeros(output, count) {
@@ -72,7 +72,7 @@ function pushZeros(output, count) {
 module.exports.Word = EthWord;
 module.exports.Word.zero = EthWord.bind(undefined, "00");
 function EthWord(x) {
-    function prepare() {
+    try {
         if (typeof x === "string" && x.match(/[0-9a-fA-F]/) === null) {
             throw errors.tagError(
                 "EthWord",
@@ -100,7 +100,7 @@ function EthWord(x) {
         result.toString = Buffer.prototype.toString.bind(result, "hex");
         return result;
     }
-    return Promise.try(prepare).
-        catch.apply(null, errors.addTag("EthWord")).
-        value();
+    catch(e) {
+        throw errors.pushTag("EthWord")(e);
+    }
 }

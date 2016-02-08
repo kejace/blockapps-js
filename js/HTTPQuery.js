@@ -62,5 +62,5 @@ function HTTPQuery(queryPath, params) {
         spread(function(response, body) {
             return body;
         }).
-        catch.apply(null, errors.addTag("HTTPQuery"));
+        tagExcepts("HTTPQuery");
 }

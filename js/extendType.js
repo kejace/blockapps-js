@@ -7,8 +7,11 @@ function extendType(x, y) {
 }
 
 function getDescriptors(x) {
-    return Object.getOwnPropertyNames(x).
-        map(Object.getOwnPropertyDescriptor.bind(null, x));
+    var result = {};
+    Object.getOwnPropertyNames(x).map(function(p) {
+        result[p] = Object.getOwnPropertyDescriptor(x,p);
+    });
+    return result;
 }
 
 module.exports = extendType;

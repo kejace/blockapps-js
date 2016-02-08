@@ -1,13 +1,12 @@
 var Int = require("./Int.js");
 var errors = require("./errors.js");
-var Promise = require("bluebird");
 var extendType = require("./extendType.js");
-var addTag = require("./errors.js").addTag;
+var pushTag = require("./errors.js").pushTag;
 
 module.exports = Address;
 
 function Address(x) {
-    function prepare() {
+    try {
         if (x.isAddress) {
             return x;
         }
@@ -62,9 +61,9 @@ function Address(x) {
 
         return extendType(result, Address.prototype);
     }
-    return Promise.try(prepare).
-        catch.apply(null, addTag("Address")).
-        value();
+    catch(e) {
+        throw pushTag("Address")(e);
+    }
 }
 
 Address.prototype = Object.create(Buffer.prototype, {
