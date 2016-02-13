@@ -53,7 +53,8 @@ function Transaction(argObj) {
 }
 
 function sendTX(privKeyFrom, addressTo) {
-    function prepare() {
+    var addr;
+    try {
         privKeyFrom = new Buffer(privKeyFrom,"hex");
         var fromAddr = Address(privateToAddress(privKeyFrom));
         this.from = Address(fromAddr).toString();
@@ -63,12 +64,13 @@ function sendTX(privKeyFrom, addressTo) {
         else if (addressTo !== undefined) {
             this.to = "0x" + Address(addressTo).toString();
         }
-        return fromAddr;
+        addr = fromAddr;
+    }
+    catch(e) {
+        throw errors.pushTag("Transaction")(e);
     }
 
-    return Promise.try(prepare.bind(this)).
-        then(Account).
-        get(nonce).
+    return Account(addr).nonce.
         then((function(nonce) {
             this.nonce = "0x" + nonce.toString(16);
             this.sign(privKeyFrom);

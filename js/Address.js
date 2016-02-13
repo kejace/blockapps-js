@@ -1,13 +1,26 @@
 var Int = require("./Int.js");
 var errors = require("./errors.js");
-var extendType = require("./extendType.js");
-var pushTag = require("./errors.js").pushTag;
 
 module.exports = Address;
 
+var addrDescrs = {
+    toEthABI: {value: toEthABI, enumerable: true},
+    constructor: {value: Address},
+    toString: {
+        value: function() {
+            return Buffer.prototype.toString.bind(this)("hex");
+        }
+    },
+    toJSON: {
+        value: function() {
+            return this.toString();
+        }
+    }
+};
+
 function Address(x) {
     try {
-        if (x.isAddress) {
+        if (Address.isInstance(x)) {
             return x;
         }
         if (typeof x === "number" || Int.isInstance(x)) {
@@ -30,10 +43,7 @@ function Address(x) {
             var byteLength = x.length/2;
 
             if (!x.match(/^[0-9a-fA-F]*$/)) {
-                throw errors.tagError(
-                    "Address",
-                    "Address string must be valid hex"
-                );
+                throw new Error("Address string must be valid hex");
             }
             
             result.write(x, 20 - byteLength, byteLength, "hex");
@@ -49,30 +59,25 @@ function Address(x) {
             }
         }
         else {
-            throw tagError(
-                "Address",
-                "x must be a number, a hex string, or a Buffer"
-            );
+            throw new Error("x must be a number, a hex string, or a Buffer");
         }
         result.toString = function() {
             return Buffer.prototype.toString.call(this,"hex");
         };
-        result.isAddress = true;
+        result.toJSON = result.toString;
 
-        return extendType(result, Address.prototype);
+        Object.defineProperties(result, addrDescrs);        
+        return result;
     }
     catch(e) {
-        throw pushTag("Address")(e);
+        errors.pushTag("Address")(e);
     }
 }
 
-Address.prototype = Object.create(Buffer.prototype, {
-    toEthABI: {value: toEthABI, enumerable: true},
-    constructor: {value: Address}
-});
+Address.prototype = Object.create(Buffer.prototype,  addrDescrs);
 
 Address.isInstance = function(x) {
-    return x instanceof Address;
+    return (Buffer.isBuffer(x) && x.constructor === Address);
 }
 
 function toEthABI() {

@@ -3,7 +3,16 @@ function extendType(x, y) {
     var yProps = getDescriptors(y);
     var qType = Object.create(pType, yProps);
     var xProps = getDescriptors(x);
-    return Object.create(qType, xProps);    
+    return Object.create(qType, xProps);
+}
+
+function assignType(t, x) {
+    var xProps = getDescriptors(x);
+    var pType = t;
+    if (typeof t === "function") {
+        pType = t.prototype;
+    }
+    return Object.create(pType, xProps);
 }
 
 function getDescriptors(x) {
@@ -14,4 +23,7 @@ function getDescriptors(x) {
     return result;
 }
 
-module.exports = extendType;
+module.exports = {
+    extendType: extendType,
+    assignType: assignType
+}

@@ -5,10 +5,10 @@ var query = require("./HTTPQuery.js").defaults;
 var multiTX = require("./MultiTX.js").defaults;
 
 module.exports = setProfile;
-function setProfile(profName, version) {
+function setProfile(profName, apiURL, version) {
     var profile = profiles[profName];
 
-    query.serverURI = profile.serverURI;
+    query.serverURI = apiURL;
     if (typeof version === "string" && version.match(/^[0-9]+\.[0-9]+$/)) {
         query.apiPrefix = "/eth/v" + version;
     }
@@ -25,7 +25,6 @@ function setProfile(profName, version) {
 var profiles = {
     "strato-dev" :
     {
-        "serverURI" : "https://strato-dev.blockapps.net",
         "pollEveryMS" : 500,
         "pollTimeoutMS" : 10000,
         "gasPrice" : ethValue(1).in("wei"),
@@ -34,7 +33,6 @@ var profiles = {
     },
     "ethereum-frontier":
     {
-        "serverURI" : "http://strato-live.blockapps.net",
         "pollEveryMS" : 1000,
         "pollTimeoutMS" : 30000,
         "gasPrice" : ethValue(1).in("szabo"),

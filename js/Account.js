@@ -14,7 +14,8 @@ Object.defineProperties(Account.prototype, {
     "address" : { value: null, enumerable: true, writable:true },
     "nonce"   : { get : function() { return propQuery(this.address, "nonce"); } },
     "balance" : { get : function() { return propQuery(this.address, "balance"); }},
-    "constructor" : Account
+    "constructor" : Account,
+    "toJSON" : function() { return this.address; }
 });
 
 function propQuery(address, prop) {

@@ -1,4 +1,6 @@
-var solc = require("./Routes.js").solc;
+var routes = require("./Routes.js");
+var solc = routes.solc;
+var extabi = routes.extabi;
 var Account = require("./Account.js");
 var Address = require("./Address.js");
 var Int = require("./Int.js");
@@ -9,9 +11,10 @@ var Promise = require('bluebird');
 var nodeEnum = require('enum');
 
 var readStorageVar = require("./solidity/storage.js");
-var solUtil = require("./solidity/util.js");
+var util = require("./solidity/util.js");
 var solMethod = require("./solidity/functions.js");
 
+var assignType = require("./types.js").assignType;
 var errors = require("./errors.js");
 
 module.exports = Solidity;
@@ -40,111 +43,101 @@ function Solidity(x) {
     }
     return Promise.
         join(solc(code, dataObj), extabi(code, dataObj), function(solcR, xabiR) {
-            var result = {};
-            var names = Object.keys(xabiR);
-            names.map(function(name) {
-                var s = Object.create(Solidity.prototype);
-                s.bin = solcR[name].bin;
-                s.xabi = xabiR[name];
-                result[name] = s;
-            });
+            var files = {};
+            for (file in xabiR) {
+                var contracts = {};
+                for (contract in xabiR[file]) {
+                    contracts[contract] = assignType(Solidity,
+                        {
+                            "bin": solcR[file][contract].bin,
+                            "xabi": xabiR[file][contract]
+                        }
+                    );
+                }
+                files[file] = contracts;
+            };
             // Backwards compatibility
-            if (code.length > 0 && names.length == 1) {
-                name = names[0];
-                result = result[name]
-                result.name = name;
+            if (Object.keys(files).length === 1 &&
+                Object.keys(files)[0] === "src" &&
+                Object.keys(files.src).length == 1)
+            {
+                contract = Object.keys(files.src)[0];
+                files = files.src[contract];
+                files.name = contract;
             }
-
-            return result;
+            return files;
         }).
         tagExcepts("Solidity");
 }
 Solidity.prototype = {
     "bin" : null,
     "xabi" : null,
+    "account" : null,
     "constructor" : Solidity,
-    "newContract" : SolContract,
+    "newContract" : newContract,
+    "attach": function() { return Solidity.attach.bind(this); },
+    "toJSON": function() {
+        var copy = {};
+        var orig = this;
+        ["bin", "xabi", "account"].forEach(function(p) {
+            copy[p] = orig[p];
+        });
+        return copy;
+    }
+};
+Solidity.attach = attach;
+Solidity.fromJSON = function(x) {
+    return assignType(Solidity, JSON.parse(x));
 };
 
 // txParams = {value, gasPrice, gasLimit}
-function SolContract(privkey, txParams) {
+function newContract(privkey, txParams) {
     var solObj = this;
     if (txParams === undefined) {
         txParams = {};
     }
-    txParams.data = this.vmCode;
+    txParams.data = this.bin;
     return Transaction(txParams).send(privkey, null).
         get("contractsCreated").
         tap(function(addrList){
             if (addrList.length !== 1) {
-                throw errors.tagError(
-                    "Solidity",
-                    "code must create one and only one account"
-                );
+                throw new Error("code must create one and only one account");
             }
         }).
         get(0).
         then(Address).
-        then(function(newAddr) {
-            return makeState(solObj, newAddr);
+        then(function(addr) {
+            solObj.account = new Account(addr);
+            return solObj;
         }).
+        then(attach).
         tagExcepts("Solidity");
-};
-
-module.exports.attach = attach;
-function attach(metadata) {
-    var error = errors.tagError(
-        "Solidity",
-        "Can only attach an Ethereum account to objects {bin, xabi[, address]}"
-    );
-
-    if (!(metadata instanceof Object)) {
-        throw error;
-    }
-    
-    var solObj = Object.create(Solidity.prototype);
-    ["bin", "xabi"].forEach(function(name){
-        if (name in metadata) {
-            solObj[name] = metadata[name];
-        }
-        else {
-            throw error;
-        }
-    });
-
-    var numProps = Object.keys(metadata).length;
-    if (numProps === 2) {
-        return solObj;
-    }
-
-    if (!(numProps === 3 && "address" in metadata)) {
-        throw error;
-    }
-
-    return makeState(solObj, metadata.address);
 }
 
-function makeState(solObj, newAddr) {
-    var storage = new Storage(newAddr);
-    var result = Object.create(solObj);
-    result.state = {};
-    result.account = new Account(newAddr);
+function attach(solObj) {
+    var state = {};
+    var xabi = solObj.xabi;
+    var types = xabi.types;
 
-    var types = solObj.xabi.types
-    var funcs = solObj.xabi.funcs;
+    var addr = solObj.account.address;
+    var funcs = xabi.funcs;
     for (var func in funcs) {
-        var funcDef = funcs[func];
-        result.state[func] = solMethod(types, funcDef, func).bind(newAddr);
-    }
-
-    var svars = solObj.xabi.vars;
-    for (var svar in svars) {
-        Object.defineProperty(result.state, svar, {
-            get : makeSolObject(solObj.xabi.types, svars[svar], storage)
+        Object.defineProperty(state, func, {
+            value: solMethod(types, funcs[func], func).bind(addr),
+            enumerable: true
         });
     }
 
-    return result;
+    var storage = new Storage(addr);
+    var svars = xabi.vars;
+    for (var svar in svars) {
+        Object.defineProperty(state, svar, {
+            get : makeSolObject(types, svars[svar], storage),
+            enumerable: true
+        });
+    }
+
+    return assignType(solObj, {"state" : state});
 }
 
 function makeSolObject(typeDefs, varDef, storage) {
@@ -155,20 +148,20 @@ function makeSolObject(typeDefs, varDef, storage) {
         var valType = varDef["value"];
         
         function doMap(x) {
-            var arg = util.readInput(keyType, x);
+            var arg = util.readInput(typeDefs, keyType, x);
             var keyBytes;
             switch (keyType["type"]) {
             case "Address":
-                keyBytes = Int(x).toEthABI();
+                keyBytes = arg.toEthABI();
                 break;
             case "Bool":
-                keyBytes = Int(x ? 1 : 0).toEthABI();
+                keyBytes = Int(arg ? 1 : 0).toEthABI();
             case "Int":
-                keyBytes = x.toEthABI();
+                keyBytes = arg.toEthABI();
                 break;
             case "Bytes":
                 if (!keyType.dynamic) {
-                    var result = x.toString("hex");
+                    var result = arg.toString("hex");
                     while (result.length < 64) { // nibbles
                         result = "00" + result;
                     }
@@ -176,9 +169,12 @@ function makeSolObject(typeDefs, varDef, storage) {
                 }
             }
 
-            var atBytes = sha3(keyBytes + mapLoc);
-            valType["atBytes"] = atBytes;
-            return makeSolObject(typeDefs, keyType, storage)();
+            var valueCopy = {}
+            for (var p in valType) {
+                valueCopy[p] = valType[p];
+            }
+            valueCopy["atBytes"] = util.dynamicLoc(keyBytes + mapLoc);
+            return makeSolObject(typeDefs, valueCopy, storage)();
         };
 
         return function() {
@@ -186,20 +182,17 @@ function makeSolObject(typeDefs, varDef, storage) {
         };
     case "Array":
         return function () {
-            var dynamicVarDef;
-            if (varDef.dynamic) {
-                dynamicVarDef = util.dynamicDef(varDef, storage);
-            }
-            else {
-                dynamicVarDef = Promise.resolve(symRow);
-            }
-
-            return dynamicVarDef.then(function(varDef) {
-                var numEntries = parseInt(varDef["length"]);
-
+            return Promise.try(function() {
+                if (varDef.dynamic) {
+                    return util.dynamicDef(varDef,storage);
+                }
+                else {
+                    return [Int(varDef.atBytes), varDef.length];
+                }                        
+            }).spread(function(atBytes, lengthBytes) {
+                var numEntries = Int(lengthBytes).valueOf();
                 var entryDef = varDef["entry"];
-                var entrySize = parseInt(entryDef["bytes"]);
-                var atBytesInt = Int(entryDef["atBytes"]);
+                var entrySize = util.objectSize(entryDef, typeDefs);
 
                 var entryCopy = {}
                 for (var p in entryDef) {
@@ -207,10 +200,11 @@ function makeSolObject(typeDefs, varDef, storage) {
                 }
 
                 var result = [];
+                atBytes = util.fitObjectStart(atBytes, 32); // Artificially align
                 while (result.length < numEntries) {
-                    entryCopy["atBytes"] = atBytesInt.toString();
-                    result.push(makeSolObject(typesDef, entryCopy, storage)());
-                    atBytesInt = atBytesInt.plus(entrySize);
+                    entryCopy["atBytes"] = util.fitObjectStart(atBytes, entrySize);
+                    result.push(makeSolObject(typeDefs, entryCopy, storage)());
+                    atBytes = entryCopy["atBytes"].plus(entrySize);
                 }
                 return Promise.all(result);                
             });
@@ -222,7 +216,8 @@ function makeSolObject(typeDefs, varDef, storage) {
         switch (typeDef["type"]) {
         case "Struct":
             var fields = typeDef["fields"];
-            var baseKey = Int(varDef["atBytes"]);
+            // Artificially align
+            var baseKey = util.fitObjectStart(varDef["atBytes"], 32);
 
             return function () {
                 var result = {};

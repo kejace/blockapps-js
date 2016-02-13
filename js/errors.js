@@ -23,7 +23,8 @@ function matchTag(tag) {
         );
     }
     return function(e) {
-        return ("errorTags" in e) && (tag in e.errorTags);
+        return (typeof e === "object") && ("errorTags" in e) &&
+            (e.errorTags.lastIndexOf(tag) !== -1);
     };
 }
 
@@ -47,20 +48,23 @@ function tagError(tag, msg) {
     return {
         errorTags: [tag],
         message: msg,
-        toString: throwMessage(prefixMessage(errorTags[0], message))
+        toString: function() {
+            var result = this.message;
+            this.errorTags.forEach(function(t) {
+                result = prefixMessage(t, result);
+            });
+            return result;
+        }
     };
 }
 
 function pushTag(tag, prefix) {
     return function(error) {
-        var result = {};
+        var result = tagError(tag, "");
 
         if (error.errorTags instanceof Array && error.errorTags.length > 0) {
-            result.errorTags = error.errorTags;
+            result.errorTags = error.errorTags.map(function(x){return x;});
             result.errorTags.push(tag);
-        }
-        else {
-            result.errorTags = [tag];
         }
 
         if (isString(prefix)) {
@@ -80,32 +84,15 @@ function pushTag(tag, prefix) {
     }
 }
 
-function addTag(tag, prefix) {
-    return [
-        noMatchTag(tag),
-        pushTag.bind(null, tag, prefix)
-    ];
-}
-
-function changeTag(tag1, tag2) {
-    return [
-        matchTag(tag1),
-        noMatchTag(tag2),
-        pushTag.bind(null, tag)
-    ];
-}
-
 Promise.prototype.tagExcepts = function(tag) {
-    return this.catch.apply(this, addTag(tag));
+    return this.catch(noMatchTag(tag), pushTag(tag));
 }
 
 module.exports = {
     tagError: tagError,
     matchTag: matchTag,
     noMatchTag: noMatchTag,
-    changeTag: changeTag,
     pushTag: pushTag,
-    addTag: addTag,
     internalError: internalError,
     isString: isString
 };

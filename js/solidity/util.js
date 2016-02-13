@@ -94,20 +94,14 @@ function readInput(typesDef, varDef, x) {
 }
 
 function dynamicDef(varDef, storage) {
-    var key = EthWord(varDef["atBytes"]).toString();
-    var length = storage.getKey(key).call("toString", "hex");
-    var realKey = sha3(varDef["atBytes"]);
-
-    var result = {};
-    for (var name in varDef) {
-        result[name] = varDef[name];
-    }
-    result["atBytes"] = realKey;
-    result["length"] = length;
-
-    return Promise.props(result);
+    var atBytes = varDef["atBytes"];
+    var realKey = dynamicLoc(atBytes.toString(16));
+    return Promise.all([realKey, storage.getKey(atBytes)]);
 }
 
+function dynamicLoc(loc) {
+    return Int("0x" + sha3(loc)).times(32);
+}
 
 function castInt(varDef, x) {
     var cast;
@@ -117,7 +111,7 @@ function castInt(varDef, x) {
     else {
         cast = Int.uintSized;
     }
-    return cast(x, parseInt(varDef["bytes"]));
+    return cast(x, varDef["bytes"]);
 }
 
 function encodingLength(varDef) {
@@ -134,9 +128,35 @@ function encodingLength(varDef) {
     }
 }
 
+function fitObjectStart(start, size) {
+    start = Int(start);
+    var offset = start % 32;
+    if (offset > 0 && offset + size > 32) {
+        start = start.plus(32 - offset);
+    }
+    return start;
+}
+
+function objectSize(varDef, typeDefs) {
+    switch(varDef["type"]) {
+    case "Bool":
+        return 1;
+    case "Address":
+        return 20;
+    case undefined:
+        var typeName = varDef["typedef"];
+        return typeDefs[typeName]["bytes"];
+    default:
+        return varDef["bytes"];
+    }
+}
+
 module.exports = {
     readInput: readInput,
     dynamicDef : dynamicDef,
+    dynamicLoc : dynamicLoc,
     castInt : castInt,
-    encodingLength: encodingLength
+    encodingLength: encodingLength,
+    fitObjectStart: fitObjectStart,
+    objectSize: objectSize
 }

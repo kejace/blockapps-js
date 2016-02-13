@@ -1,7 +1,7 @@
 var bigInt = require('big-integer');
 var bigNum = require('bignumber.js');
-var extendType = require("./extendType.js");
-var pushTag = require("./errors.js").pushTag;
+var extendType = require("./types.js").extendType;
+var errors = require("./errors.js");
 
 function Int(x) {
     try {
@@ -16,10 +16,20 @@ function Int(x) {
         else if (typeof x === "string") {
             if (x.slice(0,2) === "0x") {
                 x = x.slice(2);
-                result = bigInt(x,16);
+                try {
+                    result = bigInt(x,16);
+                }
+                catch(e) {
+                    throw new Error("Invalid hex integer: " + x);
+                }
             }
             else {
-                result = bigInt(x,10);
+                try {
+                    result = bigInt(x,10);
+                }
+                catch(e) {
+                    throw new Error("Invalid decimal integer: " + x);
+                }
             }
         }
         else if (Buffer.isBuffer(x)) {
@@ -40,12 +50,25 @@ function Int(x) {
         return result;
     }
     catch(e) {
-        throw pushTag("Int")(e);
+        errors.pushTag("Int")(e);
     }
 }
 
 Object.defineProperties(Int.prototype, {
-    toEthABI: { value: toEthABI, enumerable: true }
+    toEthABI: { value: toEthABI, enumerable: true },
+    toString: {
+        value: function(n) {
+            if (!n) {
+                n = 10;
+            }
+            return this.bigIntType.prototype.toString.call(this, n);
+        }
+    },
+    toJSON: {
+        value: function() {
+            return this.toString();
+        }
+    }
 });
 
 
@@ -53,9 +76,8 @@ Int.isInstance = function(x) {
     if (!(bigInt.isInstance(x) && "bigIntType" in x)) {
         return false;
     }
-    function f(){};
-    f.prototype = extendType(Int.prototype, x.bigIntType.prototype);
-    return (x instanceof f);
+    return (Object.getPrototypeOf(Object.getPrototypeOf(x)) ===
+            x.bigIntType.prototype);
 }
 
 function toEthABI() {
@@ -78,26 +100,28 @@ function toEthABI() {
 Int.intSized = intSized;
 
 function intSized(x, radix) {
-    var xInt = uintSized(x, radix);
-    var topBitInt = Int(256).pow(radix - 1);
-    var hasTopBit = xInt.and(topBitInt).neq(0);
+    var modInt = Int(256).pow(radix);
+    var xInt = _uintSized(x, modInt);
+    var hasTopBit = xInt.shiftRight(radix - 1).and(1) == 1;
     if (hasTopBit) {
         xInt = xInt.minus(modInt);
     }
-    return xInt;
+    return Int(xInt);
 }
 
 Int.uintSized = uintSized;
 
 function uintSized(x, radix) {
-    var xInt = Int(x);
     var modInt = Int(256).pow(radix);
-    xInt = xInt.mod(modInt);
+    return _uintSized(x, modInt);
+}
+
+function _uintSized(x, modInt) {
+    var xInt = Int(x).mod(modInt);
     if (xInt.lt(0)) {
         xInt = xInt.plus(modInt);
     }
-
-    return xInt;
+    return Int(xInt);
 }
 
 module.exports = Int;

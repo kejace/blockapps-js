@@ -4,9 +4,9 @@ var fs = require("fs");
 var errors = require("../errors.js")
 
 function streamFile(name, maybeContents) {
-    if (!isString(name)) {
-        throw errors.tagError("solcCommon", "filename must be a string, not a " +
-                              "'" + name.constructor.name + "'");
+    if (!errors.isString(name)) {
+        throw new Error("filename must be a string, not a " +
+                        "'" + name.constructor.name + "'");
     }
     switch (typeof maybeContents) {
     case "undefined" :
@@ -22,11 +22,13 @@ function streamFile(name, maybeContents) {
 }
 
 function prepPostData (dataObj) {
-    dataObjOpts = dataObj[options];
+    var postDataObj = {};
+    
+    dataObjOpts = dataObj.options;
     for (opt in dataObjOpts) {
         postDataObj[opt] = dataObjOpts[opt];
     }
-    delete dataObj[options];
+    delete dataObj.options;
     
     for (name in dataObj) {
         postDataNameArr = [];
@@ -39,17 +41,16 @@ function prepPostData (dataObj) {
     return postDataObj;
 }
 
-function postDataCommon(route, dataObj) {
-   return HTTPQuery(route, {"postData" : prepPostData(dataObj)});
-}
-
-function solcCommon(route, code, dataObj) {
-    if (!("options" in dataObj)) {
-        dataObj[options] = {};
+function solcCommon(tag, code, dataObj) {
+    if (!dataObj) {
+        dataObj = {};
     }
-    dataObj[options]["src"] = code;
-    return Promise.try(postDataCommon.bind(null, route, dataObj)).
-        tagExcepts("solcCommon");
+    if (!("options" in dataObj)) {
+        dataObj.options = {};
+    }
+    dataObj.options.src = code;
+    var route = "/" + tag;
+    return HTTPQuery(route, {"postData" : prepPostData(dataObj)}).tagExcepts(tag);
 }
 
 // solc(code :: string, {
@@ -65,9 +66,6 @@ function solcCommon(route, code, dataObj) {
 //     bin : <hex string>
 //   } ...
 // }
-function solc(code, dataObj) {
-    return solcCommon("/solc", code, dataObj).tagExcepts("solc");
-}
 
 // extabi(code :: string, {
 //   main : { <name> : (undefined | code :: string) ...},
@@ -75,11 +73,8 @@ function solc(code, dataObj) {
 // }) = {
 //   <contract name> : <solidity-abi response> ...
 // }
-function extabi(code, dataObj) {
-    return solcCommon("/extabi", code, dataObj).tagExcepts("extabi");
-}
 
 module.exports = {
-    solc: solc,
-    extabi: extabi
+    solc: solcCommon.bind(null, "solc"),
+    extabi: solcCommon.bind(null, "extabi")
 };

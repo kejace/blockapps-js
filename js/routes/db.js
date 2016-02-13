@@ -4,16 +4,17 @@ var Address = require("../Address.js");
 var errors = require("../errors.js");
 
 function block(blockQueryObj) {
-    function prepare() {
+    try {
         if (typeof blockQueryObj !== "object") {
-            throw errors.tagError(
-                "block",
+            throw new Error(
                 "blockQueryObj must be a dictionary of query parameters"
             );
         }
     }
-    return Promise.try(prepare).
-        then(HTTPQuery.bind(null, "/block", {"get": blockQueryObj})).
+    catch(e) {
+        errors.pushTag("block")(e);
+    }
+    return HTTPQuery("/block", {"get": blockQueryObj}).
         then(function(blocks) {
             if (blocks.length === 0) {
                 throw errors.tagError("NotDone", "Query did not match any blocks");
@@ -26,28 +27,30 @@ function block(blockQueryObj) {
 }
 
 function blockLast(n) {
-    function prepare() {
+    try {
         n = Math.ceil(n);
         if (n <= 0) {
-            throw errors.tagError("blockLast", "n must be positive");
+            throw new Error("blockLast", "n must be positive");
         }
     }
-    return Promise.try(prepare).
-        then(HTTPQuery.bind(null, "/block/last/" + n, {"get":{}})).
-        tagExcepts("blockLast");    
+    catch(e) {
+        errors.pushTag("blockLast")(e);
+    }
+    return HTTPQuery("/block/last/" + n, {"get":{}}).tagExcepts("blockLast"); 
 }
 
 function account(accountQueryObj) {
-    function prepare() {
+    try {
         if (typeof accountQueryObj !== "object") {
-            throw errors.tagError(
-                "account",
+            throw new Error(
                 "accountQueryObj must be a dictionary of query parameters"
             );
         }
     }
-    return Promise.try(prepare).
-        then(HTTPQuery.bind(null, "/account", {"get" : accountQueryObj})).
+    catch(e) {
+        errors.pushTag("account")(e);
+    }
+    return HTTPQuery("/account", {"get" : accountQueryObj}).
         then(function(accts) {
             if (accts.length === 0) {
                 throw errors.tagError(
@@ -69,16 +72,17 @@ function accountAddress(address) {
 
 
 function storage(storageQueryObj) {
-    function prepare() {
+    try {
         if (typeof storageQueryObj !== "object") {
-            throw errors.tagError(
-                "storage",
+            throw new Error(
                 "storageQueryObj must be a dictionary of query parameters"
             );
         }
     }
-    return Promise.try(prepare).
-        then(HTTPQuery.bind(null, "/storage", {"get": storageQueryObj})).
+    catch(e) {
+        errors.pushTag("storage")(e);
+    }
+    return HTTPQuery("/storage", {"get": storageQueryObj}).
         then(function(stor) {
             if (stor.length === 0) {
                 throw errors.tagError(

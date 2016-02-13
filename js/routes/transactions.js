@@ -2,19 +2,21 @@ var HTTPQuery = require("../HTTPQuery.js");
 var Promise = require('bluebird');
 var Address = require("../Address.js");
 var pollPromise = require("./pollPromise.js");
-var errors = require("../errors.js")
+var errors = require("../errors.js");
+var accountAddress = require("./db.js").accountAddress;
 
 function faucet(address) {
     var addr;
-    function prepare() {
+    try {
         addr = Address(address).toString();
     }
-    return Promise.try(prepare).
-        then(HTTPQuery.bind(null, "/faucet", {"post": {"address" : addr}})).
+    catch(e) {
+        errors.pushTag("faucet")(e);
+    }
+    return HTTPQuery("/faucet", {"post": {"address" : addr}}).
         then(pollPromise.bind(null, accountAddress.bind(null, addr))).
         catch(Promise.TimeoutError, function(e) {
-            throw errors.tagError(
-                "faucet",
+            throw new Error(
                 "waited " + pollPromise.defaults.pollTimeoutMS / 1000 + " seconds"
             );
         }).
@@ -23,13 +25,11 @@ function faucet(address) {
 
 function submitTransaction(txObj) {
     return HTTPQuery("/transaction", {"data":txObj}).
-        then(pollPromise.bind(
-            null,
-            transactionResult.bind(null, txObj.partialHash)
-        )).
+        then(function(txHash) {
+            return pollPromise(transactionResult.bind(null, txHash));
+        }).
         catch(Promise.TimeoutError, function() {
-            throw errors.tagError(
-                "submitTransaction",
+            throw new Error(
                 "waited " + pollPromise.defaults.pollTimeoutMS / 1000 + " seconds"
             );
         }).
@@ -37,13 +37,15 @@ function submitTransaction(txObj) {
 }
 
 function transaction(transactionQueryObj) {
-    function prepare() {
+    try {
         if (typeof transactionQueryObj !== "object") {
-            throw errors.tagError(
-                "transaction",
+            throw new Error(
                 "transactionQueryObj must be a dictionary of query parameters"
             );
         }
+    }
+    catch(e) {
+        errors.pushTag("transaction")(e);
     }
     return Promise.try(prepare).
         then(HTTPQuery.bind(null, "/transaction", {"get": transactionQueryObj})).
@@ -62,11 +64,14 @@ function transaction(transactionQueryObj) {
 }
 
 function transactionLast(n) {
-    function prepare() {
+    try {
         n = Math.ceil(n);
         if (n <= 0) {
-            throw errors.tagError("transactionLast", "n must be positive");
+            throw new Error("transactionLast", "n must be positive");
         }
+    }
+    catch(e) {
+        errors.pushTag("transactionLast")(e);
     }
     return Promise.try(prepare).
         then(HTTPQuery.bind(null, "/transaction/last/" + n, {"get":{}})).
@@ -74,13 +79,15 @@ function transactionLast(n) {
 }
 
 function transactionResult(txHash) {
-    function prepare() {
+    try {
         if (typeof txHash !== "string" || !txHash.match(/^[0-9a-fA-F]*$/)) {
-            throw Promise.OperationalError("txHash must be a hex string");
+            throw new Error("txHash must be a hex string (got: " + txHash + ")");
         }
     }
-    return Promise.try(prepare).
-        then(HTTPQuery.bind(null, "/transactionResult/" + txHash, {"get":{}})).
+    catch(e) {
+        errors.pushTag("transactionResult")(e);
+    }
+    return HTTPQuery("/transactionResult/" + txHash, {"get":{}}).
         then(
             function(txList) {
                 if (txList.length === 0) {
@@ -94,8 +101,7 @@ function transactionResult(txHash) {
         ).
         then(function(txResult){
             if (txResult.transactionHash !== txHash) {
-                throw errors.tagError(
-                    "transactionResult",
+                throw new Error(
                     "could not retrieve transactionResult for hash " + txHash
                 );
             }
@@ -104,10 +110,8 @@ function transactionResult(txHash) {
                     + JSON.stringify(txResult, undefined, "  ") + "\n";
                 return transaction({hash: txHash}).
                     then(function(tx) {
-                        throw errors.tagError(
-                            "transactionResult",
-                            msg + "\nTransaction was:\n" +
-                                JSON.stringify(tx, undefined, "  "))
+                        throw new Error(msg + "\nTransaction was:\n" +
+                                        JSON.stringify(tx, undefined, "  "))
                     });
             }
             var contractsCreated = txResult.contractsCreated.split(",");
