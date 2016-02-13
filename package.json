@@ -43,7 +43,8 @@
         "ethereumjs-util": "kejace/ethereumjs-util",
         "request": "",
         "secp256k1-browserify": "",
-        "string": ""
+        "string": "",
+        "browserify-sha3": ""
     },
     "engines": {
         "node": ">= 0.12.5"
