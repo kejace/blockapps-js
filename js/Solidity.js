@@ -6,7 +6,6 @@ var Address = require("./Address.js");
 var Int = require("./Int.js");
 var Transaction = require("./Transaction.js");
 var Storage = require("./Storage.js");
-var EthWord = Storage.Word;
 var Promise = require('bluebird');
 var nodeEnum = require('enum');
 
@@ -132,7 +131,14 @@ function attach(solObj) {
     var svars = xabi.vars;
     for (var svar in svars) {
         Object.defineProperty(state, svar, {
-            get : makeSolObject(types, svars[svar], storage),
+            get : function() {
+                try {
+                    return makeSolObject(types, svars[svar], storage);
+                }
+                catch(e) {
+                    errors.pushTag(svars[svar].type)(e);
+                }
+            },
             enumerable: true
         });
     }
@@ -143,72 +149,71 @@ function attach(solObj) {
 function makeSolObject(typeDefs, varDef, storage) {
     switch (varDef.type) {
     case "Mapping":
-        var mapLoc = EthWord(varDef["atBytes"]).toString();
+        var mapLoc = Int(Int(varDef["atBytes"]).over(32)).toEthABI();
         var keyType = varDef["key"];
         var valType = varDef["value"];
         
-        function doMap(x) {
-            var arg = util.readInput(typeDefs, keyType, x);
-            var keyBytes;
-            switch (keyType["type"]) {
-            case "Address":
-                keyBytes = arg.toEthABI();
-                break;
-            case "Bool":
-                keyBytes = Int(arg ? 1 : 0).toEthABI();
-            case "Int":
-                keyBytes = arg.toEthABI();
-                break;
-            case "Bytes":
-                if (!keyType.dynamic) {
-                    var result = arg.toString("hex");
-                    while (result.length < 64) { // nibbles
-                        result = "00" + result;
+        return function(x) {
+            try {
+                var arg = util.readInput(typeDefs, keyType, x);
+                var keyBytes;
+                switch (keyType["type"]) {
+                case "Address":
+                    keyBytes = arg.toEthABI();
+                    break;
+                case "Bool":
+                    keyBytes = Int(arg ? 1 : 0).toEthABI();
+                case "Int":
+                    keyBytes = arg.toEthABI();
+                    break;
+                case "Bytes":
+                    if (!keyType.dynamic) {
+                        var result = arg.toString("hex");
+                        while (result.length < 64) { // nibbles
+                            result = "00" + result;
+                        }
+                        keyBytes = result;
                     }
-                    keyBytes = result;
                 }
-            }
 
-            var valueCopy = {}
-            for (var p in valType) {
-                valueCopy[p] = valType[p];
+                var valueCopy = {}
+                for (var p in valType) {
+                    valueCopy[p] = valType[p];
+                }
+                valueCopy["atBytes"] = util.dynamicLoc(keyBytes + mapLoc);
+                return makeSolObject(typeDefs, valueCopy, storage);
             }
-            valueCopy["atBytes"] = util.dynamicLoc(keyBytes + mapLoc);
-            return makeSolObject(typeDefs, valueCopy, storage)();
-        };
-
-        return function() {
-            return doMap;
+            catch(e) {
+                errors.pushTag("Mapping")(e);
+            }
         };
     case "Array":
-        return function () {
-            return Promise.try(function() {
-                if (varDef.dynamic) {
-                    return util.dynamicDef(varDef,storage);
-                }
-                else {
-                    return [Int(varDef.atBytes), varDef.length];
-                }                        
-            }).spread(function(atBytes, lengthBytes) {
-                var numEntries = Int(lengthBytes).valueOf();
-                var entryDef = varDef["entry"];
-                var entrySize = util.objectSize(entryDef, typeDefs);
+        return Promise.try(function() {
+            if (varDef.dynamic) {
+                return util.dynamicDef(varDef,storage);
+            }
+            else {
+                return [Int(varDef.atBytes), varDef.length];
+            }                        
+        }).spread(function(atBytes, lengthBytes) {
+            var numEntries = Int(lengthBytes).valueOf();
+            var entryDef = varDef["entry"];
+            var entrySize = util.objectSize(entryDef, typeDefs);
 
-                var entryCopy = {}
-                for (var p in entryDef) {
-                    entryCopy[p] = entryDef[p];
-                }
+            var entryCopy = {}
+            for (var p in entryDef) {
+                entryCopy[p] = entryDef[p];
+            }
 
-                var result = [];
-                atBytes = util.fitObjectStart(atBytes, 32); // Artificially align
-                while (result.length < numEntries) {
-                    entryCopy["atBytes"] = util.fitObjectStart(atBytes, entrySize);
-                    result.push(makeSolObject(typeDefs, entryCopy, storage)());
-                    atBytes = entryCopy["atBytes"].plus(entrySize);
-                }
-                return Promise.all(result);                
-            });
-        }
+            var result = [];
+            atBytes = util.fitObjectStart(atBytes, 32); // Artificially align
+            while (result.length < numEntries) {
+                entryCopy["atBytes"] = util.fitObjectStart(atBytes, entrySize);
+                result.push(makeSolObject(typeDefs, entryCopy, storage));
+                atBytes = entryCopy["atBytes"].plus(entrySize);
+            }
+            return Promise.all(result);                
+        });
     case undefined:
         var userName = varDef["typedef"];
         var typeDef = typeDefs[userName];
@@ -219,20 +224,18 @@ function makeSolObject(typeDefs, varDef, storage) {
             // Artificially align
             var baseKey = util.fitObjectStart(varDef["atBytes"], 32);
 
-            return function () {
-                var result = {};
-                for (var name in fields) {
-                    var field = fields[name];
-                    var fieldCopy = {};
-                    for (var p in field) {
-                        fieldCopy[p] = field[p];
-                    }
-                    var fieldOffset = Int(field["atBytes"]);
-                    fieldCopy["atBytes"] = baseKey.plus(fieldOffset);
-                    result[name] = makeSolObject(typeDefs, fieldCopy, storage)();
+            var result = {};
+            for (var name in fields) {
+                var field = fields[name];
+                var fieldCopy = {};
+                for (var p in field) {
+                    fieldCopy[p] = field[p];
                 }
-                return Promise.props(result);
+                var fieldOffset = Int(field["atBytes"]);
+                fieldCopy["atBytes"] = baseKey.plus(fieldOffset);
+                result[name] = makeSolObject(typeDefs, fieldCopy, storage);
             }
+            return Promise.props(result);
 
         case "Enum":
             var names = typeDef["names"];
@@ -243,13 +246,11 @@ function makeSolObject(typeDefs, varDef, storage) {
                 bytes: typeDef["bytes"],
                 type: "Int",
             };
-            return function () {
-                return readSolVar(uintDef, storage).then(function(x) {
-                    return enumType.get(x.valueOf());
-                })
-            }
+            return readSolVar(uintDef, storage).then(function(x) {
+                return enumType.get(x.valueOf());
+            })
         }
     default:
-        return readStorageVar.bind(null, varDef, storage);
+        return readStorageVar(varDef, storage);
     }
 }

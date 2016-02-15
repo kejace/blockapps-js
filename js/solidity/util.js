@@ -94,13 +94,13 @@ function readInput(typesDef, varDef, x) {
 }
 
 function dynamicDef(varDef, storage) {
-    var atBytes = varDef["atBytes"];
+    var atBytes = Int(Int(varDef["atBytes"]).over(32));
     var realKey = dynamicLoc(atBytes.toString(16));
     return Promise.all([realKey, storage.getKey(atBytes)]);
 }
 
 function dynamicLoc(loc) {
-    return Int("0x" + sha3(loc)).times(32);
+    return Int(Int("0x" + sha3(loc)).times(32));
 }
 
 function castInt(varDef, x) {
@@ -138,11 +138,16 @@ function fitObjectStart(start, size) {
 }
 
 function objectSize(varDef, typeDefs) {
+    if (varDef.dynamic) {
+        return 32;
+    }
     switch(varDef["type"]) {
     case "Bool":
         return 1;
     case "Address":
         return 20;
+    case "Array":
+        return varDef["length"] * objectSize(varDef["entry"], typeDefs);
     case undefined:
         var typeName = varDef["typedef"];
         return typeDefs[typeName]["bytes"];
