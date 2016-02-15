@@ -4,13 +4,9 @@ var util = require("./util.js");
 var errors = require("../errors.js");
 
 function solMethod(typesDef, funcDef, name) {
-    var args = funcDef["args"];
-    var argsList = [];
-    for (var name in args) {
-        var arg = args[name];
-        argsList[arg["index"]] = arg;
-    }    
     var vals = funcDef["vals"];
+    var args = funcDef["args"];
+    var argsList = entriesToList(args);
 
     return function() {
         var argArr = [];
@@ -24,29 +20,30 @@ function solMethod(typesDef, funcDef, name) {
                 if (firstArg[arg] === undefined) {
                     throw errors.tagError(
                         "Solidity",
-                        "Solidity function \"" + name + "\": " +
+                        "function \"" + name + "\" " +
                             "arguments must include \"" + arg + "\""
                     );
                 }
-                argArr.push(util.readInput(types, args[arg], firstArg[arg]));
+                argArr.push(util.readInput(typesDef, args[arg], firstArg[arg]));
             }
         }
         else {
-            if (arguments.length !== args.length) {
+            if (arguments.length !== argsList.length) {
                 throw errors.tagError(
                     "Solidity",
-                    "Solidity function \"" + name + "\": " +
-                        "takes exactly " + args.length + " arguments"
+                    "function \"" + name + "\" " +
+                        "takes exactly " + argsList.length + " arguments"
                 );
             }
-            argArr = argsList.map(function(arg, i) {
-                return util.readInput(types, arg, arguments[i]);
+            var argumentsList = arguments;
+            argArr = argsList.map(function(argDef, i) {
+                return util.readInput(typesDef, argDef, argumentsList[i]);
             });
         }
         
         var result = Transaction({
             "to" : this,
-            "data": funcArgs(funcDef, argArr)
+            "data": funcArgs(funcDef["selector"], argsList, argArr)
         });
         result.txParams = txParams;
         result.callFrom = callFrom;
@@ -71,18 +68,26 @@ function txParams(given) {
 }
 
 function callFrom(from) {
-    return this.send(from).get("response").then(
-        decodeReturn.bind(null, this._ret)
-    );
+    return this.send(from).get("response").bind(this).then(function(r) {
+        var result = decodeReturn(this._ret, r);
+        switch (result.length) {
+        case 0:
+            return null;
+        case 1:
+            return result[0];
+        default:
+            return result;
+        }
+    });
 }
 
-function funcArgs(funcDef, x) {
+function funcArgs(selector, argsList, x) {
     var funcArgsDef = {
         "type" : "Array",
-        "entries" : funcDef["args"]
+        "entries" : argsList
     };
 
-    return funcDef["selector"] + funcArg(funcArgsDef, x);
+    return selector + funcArg(funcArgsDef, x);
 }
 
 function funcArg(varDef, y) {
@@ -220,14 +225,19 @@ function decodeReturn(valsDef, x) {
             toSlice = getLength(valDef) * 64;
             result = [];
             after = function(arr) {
-                var entries = varDef["entries"];
-                if (entries === undefined) {
+                var entries;
+                if ("entries" in valDef) {
+                    entries = entriesToList(valDef["entries"]);
+                }
+                else {
                     entries = [];
-                    var entry = varDef["entry"];
-                    for (var i = 0; i < y.length; ++i) {
+                    var entry = valDef["entry"];
+                    for (var i = 0; i < length; ++i) {
                         entries.push(entry);
                     }
                 }
+
+                var length = getLength(valDef);
                 for (var i = 0; i < length; ++i) {
                     arr.push(go(entries[i]));
                 }
@@ -235,11 +245,21 @@ function decodeReturn(valsDef, x) {
             }
             break;
         }
+        var result = after(result);
         x = x.slice(toSlice);
         toSlice = undefined;
-        return after(result);
+        return result;
     }
     return go(valsDef);
+}
+
+function entriesToList(entries) {
+    var result = [];
+    for (var entry in entries) {
+        var entryDef = entries[entry];
+        result[entryDef["index"]] = entryDef;
+    }
+    return result;
 }
 
 module.exports = solMethod;
