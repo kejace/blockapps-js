@@ -4,6 +4,7 @@ var submitTransaction = require("./Routes.js").submitTransaction;
 var Account = require("./Account.js");
 var Address = require("./Address.js");
 var Int = require("./Int.js");
+var errors = require("./errors.js");
 
 module.exports = Transaction;
 module.exports.defaults = {
@@ -14,52 +15,76 @@ module.exports.defaults = {
 //   data:, value:, gasPrice:, gasLimit:
 // }
 function Transaction(argObj) {
-    var tx = new ethTransaction();
-    if (argObj === undefined) {
-        argObj = module.exports.defaults;
-    }
-    
-    tx.gasPrice = "0x" + Int(
-        !("gasPrice" in argObj) ? module.exports.defaults.gasPrice : argObj.gasPrice
-    ).toString(16);
-    tx.gasLimit = "0x" + Int(
-        !("gasLimit" in argObj) ? module.exports.defaults.gasLimit : argObj.gasLimit
-    ).toString(16);
-    tx.value    = "0x" + Int(
-        !("value" in argObj) ? module.exports.defaults.value : argObj.value
-    ).toString(16);
-    tx.data = "0x" + argObj.data;
-    
-    if (argObj.to !== undefined) {
-        tx.to = "0x" + Address(argObj.to).toString();
-    }
-    tx.toJSON = txToJSON;
-    
-    Object.defineProperty(tx, "partialHash", {
-        get : function() {
-            return bufToString(this.hash());
-        },
-        enumerable : true
-    });
-    
-    tx.send = function(privKeyFrom, addressTo) {
-        privKeyFrom = new Buffer(privKeyFrom,"hex");
-        var fromAddr = Address(privateToAddress(privKeyFrom));
-        tx.from = Address(fromAddr).toString();
-        if (addressTo === null) {
-            tx.to = "";
-        }
-        else if (addressTo !== undefined) {
-            tx.to = "0x" + Address(addressTo).toString();
+    try {
+        var tx = new ethTransaction();
+        if (argObj === undefined) {
+            argObj = module.exports.defaults;
         }
 
-        return Account(fromAddr).nonce.then(function(nonce) {
-            tx.nonce = "0x" + nonce.toString(16);
-            tx.sign(privKeyFrom);
-            return submitTransaction(tx);
-        })
+        tx.gasPrice = "0x" + Int(
+            !("gasPrice" in argObj) ? module.exports.defaults.gasPrice : argObj.gasPrice
+        ).toString(16);
+        tx.gasLimit = "0x" + Int(
+            !("gasLimit" in argObj) ? module.exports.defaults.gasLimit : argObj.gasLimit
+        ).toString(16);
+        tx.value    = "0x" + Int(
+            !("value" in argObj) ? module.exports.defaults.value : argObj.value
+        ).toString(16);
+        tx.data = "0x" + argObj.data;
+
+        if (argObj.to === undefined ||
+            argObj.to === null ||
+            argObj.to == 0 || // Intentional
+            Address.isInstance(argObj.to) && argObj.to.length === 0)
+        {
+            tx.to = "0x" + Address(argObj.to).toString();
+        }
+
+        Object.defineProperty(tx, "partialHash", {
+            get : function() {
+                return bufToString(this.hash());
+            },
+            enumerable : true
+        });
+
+        tx.toJSON = txToJSON;
+        tx.send = sendTX;
+        return tx;
     }
-    return tx;
+    catch(e) {
+        throw errors.pushTag("Transaction")(e);
+    }
+}
+
+function sendTX(privKeyFrom, addressTo) {
+    var addr;
+    try {
+        privKeyFrom = new Buffer(privKeyFrom,"hex");
+        var fromAddr = Address(privateToAddress(privKeyFrom));
+        this.from = fromAddr.toString();
+        if (addressTo === undefined ||
+            addressTo === null ||
+            addressTo == 0 || // Intentional
+            Address.isInstance(addressTo) && addressTo.length === 0)
+        {
+            this.to = "";
+        }
+        else {
+            this.to = "0x" + Address(addressTo).toString();
+        }
+        addr = fromAddr;
+    }
+    catch(e) {
+        throw errors.pushTag("Transaction")(e);
+    }
+
+    return Account(addr).nonce.
+        then((function(nonce) {
+            this.nonce = "0x" + nonce.toString(16);
+            this.sign(privKeyFrom);
+            return submitTransaction(this);
+        }).bind(this)).
+        tagExcepts("Transaction");
 }
 
 function txToJSON() {

@@ -1,14 +1,14 @@
 var ethValue = require("./Units.js").ethValue;
-var polling = require("./pollPromise.js").defaults;
+var polling = require("./routes/pollPromise.js").defaults;
 var txParams = require("./Transaction.js").defaults;
 var query = require("./HTTPQuery.js").defaults;
 var multiTX = require("./MultiTX.js").defaults;
 
 module.exports = setProfile;
-function setProfile(profName, version) {
+function setProfile(profName, apiURL, version) {
     var profile = profiles[profName];
 
-    query.serverURI = profile.serverURI;
+    query.serverURI = apiURL;
     if (typeof version === "string" && version.match(/^[0-9]+\.[0-9]+$/)) {
         query.apiPrefix = "/eth/v" + version;
     }
@@ -25,25 +25,14 @@ function setProfile(profName, version) {
 var profiles = {
     "strato-dev" :
     {
-        "serverURI" : "https://strato-dev.blockapps.net",
         "pollEveryMS" : 500,
         "pollTimeoutMS" : 10000,
         "gasPrice" : ethValue(1).in("wei"),
         "gasLimit" : 3141592,
-        "multiTXaddr" : "9459cd601c609ff5251a6fa500ba1c9b8bd8d45a"
+        "multiTXaddr" : "8a53483de69960d69fdbf98dfcb6af368a8b4abf"
     },
-    "strato-dev2" :
+    "ethereum-frontier":
     {
-        "serverURI" : "https://strato-dev2.blockapps.net",
-        "pollEveryMS" : 500,
-        "pollTimeoutMS" : 10000,
-        "gasPrice" : ethValue(1).in("wei"),
-        "gasLimit" : 3141592,
-        "multiTXaddr" : "9459cd601c609ff5251a6fa500ba1c9b8bd8d45a"
-    },
-    "strato-live":
-    {
-        "serverURI" : "http://strato-live.blockapps.net",
         "pollEveryMS" : 1000,
         "pollTimeoutMS" : 30000,
         "gasPrice" : ethValue(1).in("szabo"),

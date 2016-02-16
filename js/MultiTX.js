@@ -1,21 +1,15 @@
 var Address = require("./Address.js");
 var Account = require("./Account.js");
-var Solidity = require("./Solidity.js");
-var solidityType = require("./solidityType");
+var Solidiy = require("./Solidity.js");
+var encodingLength = require("./solidity/util.js").encodingLength;
+var decodeReturn = require("./solidity/functions.js").decodeReturn;
 var Transaction = require("./Transaction.js");
-var ethTypes = {
-    "Int": require("./Int.js"),
-    "Address": require("./Address.js"),
-}
+var Int = require("./Int.js");
 
 module.exports = MultiTX;
 
 var defaults = {};
 module.exports.defaults = defaults;
-
-function argEncode(type, value) {
-    return solidityType.funcArg({"jsType" : type}, ethTypes[type](value));
-}
 
 function MultiTX(txArray) {
     if (arguments.length > 1 || !(arguments[0] instanceof Array) ) {
@@ -43,16 +37,16 @@ function MultiTX(txArray) {
         }
     });
 
-    var totalValue = ethTypes.Int(0);
+    var totalValue = Int(0);
     var rets = [];
-    var multiTX = argEncode("Int", txArray.length);
+    var multiTX = Int(txArray.length).toEthABI();
     txArray.forEach(function(tx) {
-        totalValue = totalValue.add(ethTypes.Int(tx.value));
+        totalValue = totalValue.add(Int(tx.value));
 
-        multiTX += argEncode("Int", tx.value);
-        multiTX += argEncode("Int", tx.data.length) + tx.data.toString("hex");
+        multiTX += Int(tx.value).toEthABI();
+        multiTX += Int(tx.data.length).toEthABI() + tx.data.toString("hex");
         if (tx.to.length == 0) {
-            multiTX += argEncode("Address", 0);
+            multiTX += Address(0).toEthABI();
             rets.push({
                 "solidityType" : "address",
                 "jsType" : "Address",
@@ -61,14 +55,14 @@ function MultiTX(txArray) {
             return;
         }
         else {
-            multiTX += argEncode("Address", tx.to);
+            multiTX += Address(tx.to).toEthABI();
         }
 
         var retLength = 0;
         if (tx._ret !== undefined) {
-            retLength = solidityType.encodingLength(tx._ret);
+            retLength = encodingLength(tx._ret);
         }
-        multiTX += argEncode("Int", retLength) + argEncode("Int", tx.gasLimit);
+        multiTX += Int(retLength).toEthABI() + Int(tx.gasLimit).toEthABI();
         
         rets.push(tx._ret);
     });
@@ -127,7 +121,7 @@ function sendMultiTX(privkey) {
             var success = ((retStatus & 0x01) == 0);
 
             if (success) {
-                return solidityType.decodeReturn(retType, thisReturn.toString("hex"));
+                return decodeReturn(retType, thisReturn.toString("hex"));
             }
             else {
                 return undefined;
