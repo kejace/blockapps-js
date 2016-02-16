@@ -1,6 +1,8 @@
 language: node_js
 node_js:
-  - "0.12.7"
-
+- 0.12.7
 script:
-  - npm run coveralls
+- npm run coveralls
+notifications:
+  slack:
+    secure: Np4HoVJ9Kl4M4oZck6pDj/N9VMBLYkf9g0dUCPBlwOpXw046oQiHCi3bnFptfzNdW2r0xikjvm7SMf9Kg2qm5QIkGFpuk94oAoZLt2Iku3A61ZZCF0J+FvcMTQ2Z+KTf9cECnKMOvu9wpjey5MegASdLcahHyHVsL9Up9M6hhstXDe4FiWM2+cqeGJNDGsv0sfKLDLX+UD5sPTKS3nsggHs/JxWUMLd35uBADVxpSyte6BE6in804ejLSuCmlkIjcHnboIifDKctq1cO/JUiqbNTCqiexiC3NwO/0fhFNkEdptxwzgK4BYAKZU9gkSWCL8ExvqBbWty5BSEEJSyRQ8goI5zmpuU6qhWdR0/TrsbFpwF7/VUTm4py2NfagGcnoOlfoey7DN6gVt4f5oVTBOdqb0WtawlEOJSrcAB4W+grxUsVYSC7NgtD/dpBtbQihTl16lOrMneVsYBlM3vfA6dDxEhYPGdQiFHheeOJu+kzlG7NaYXMvm360pYfb3JrlXo59K657qxMhz8UTLGcNqduvgRzqguGpMqF9pr0I0D0/8yVxP4X5BNXeW3aFYKUWzcff/Cqs+JvQfXc4jcq9KYGoc87RbSKYuoCPkYrOTl1iVmfBrv1HH5ld3GR4WJxsNLAfjmP/yg+xz9Zo2ojwP7AtVTI9pZVeeVLaidQ220=
