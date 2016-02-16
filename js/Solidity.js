@@ -43,9 +43,9 @@ function Solidity(x) {
     return Promise.
         join(solc(code, dataObj), extabi(code, dataObj), function(solcR, xabiR) {
             var files = {};
-            for (file in xabiR) {
+            for (file in solcR) {
                 var contracts = {};
-                for (contract in xabiR[file]) {
+                for (contract in solcR[file]) {
                     contracts[contract] = assignType(Solidity,
                         {
                             "bin": solcR[file][contract].bin,
