@@ -20,7 +20,7 @@ function Transaction(argObj) {
         if (argObj === undefined) {
             argObj = module.exports.defaults;
         }
-        
+
         tx.gasPrice = "0x" + Int(
             !("gasPrice" in argObj) ? module.exports.defaults.gasPrice : argObj.gasPrice
         ).toString(16);
@@ -31,18 +31,22 @@ function Transaction(argObj) {
             !("value" in argObj) ? module.exports.defaults.value : argObj.value
         ).toString(16);
         tx.data = "0x" + argObj.data;
-        
-        if (argObj.to !== undefined) {
+
+        if (argObj.to === undefined ||
+            argObj.to === null ||
+            argObj.to == 0 || // Intentional
+            Address.isInstance(argObj.to) && argObj.to.length === 0)
+        {
             tx.to = "0x" + Address(argObj.to).toString();
         }
-        
+
         Object.defineProperty(tx, "partialHash", {
             get : function() {
                 return bufToString(this.hash());
             },
             enumerable : true
         });
-        
+
         tx.toJSON = txToJSON;
         tx.send = sendTX;
         return tx;
@@ -57,11 +61,15 @@ function sendTX(privKeyFrom, addressTo) {
     try {
         privKeyFrom = new Buffer(privKeyFrom,"hex");
         var fromAddr = Address(privateToAddress(privKeyFrom));
-        this.from = Address(fromAddr).toString();
-        if (addressTo === null) {
+        this.from = fromAddr.toString();
+        if (addressTo === undefined ||
+            addressTo === null ||
+            addressTo == 0 || // Intentional
+            Address.isInstance(addressTo) && addressTo.length === 0)
+        {
             this.to = "";
         }
-        else if (addressTo !== undefined) {
+        else {
             this.to = "0x" + Address(addressTo).toString();
         }
         addr = fromAddr;

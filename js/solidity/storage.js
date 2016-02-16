@@ -5,7 +5,7 @@ var util = require("./util.js");
 function readStorageVar(varDef, storage) {
     var type = varDef["type"];
     switch(type) {
-    case "Address":
+    case "Address": case "Contract":
         return simpleBuf(varDef, storage).then(Address);
     case "Bool":
         return simpleBuf(varDef, storage).get(0).then(function(x) {return x==1;});

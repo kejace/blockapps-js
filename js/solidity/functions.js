@@ -10,6 +10,7 @@ function solMethod(typesDef, funcDef, name) {
     var args = funcDef["args"];
     util.setTypedefs(typesDef, args);
     var argsList = entriesToList(args);
+    var solObj = this;
 
     return function() {
         var argArr = [];
@@ -43,7 +44,6 @@ function solMethod(typesDef, funcDef, name) {
                 return util.readInput(typesDef, argDef, argumentsList[i]);
             });
         }
-        
         var result = Transaction({
             "to" : this,
             "data": funcArgs(funcDef["selector"], argsList, argArr)
@@ -56,7 +56,10 @@ function solMethod(typesDef, funcDef, name) {
                     type: "Array",
                     entries: vals,
                     length: Object.keys(vals).length
-                }
+                }                
+            },
+            "_solObj" : {
+                value: solObj
             }
         });
         return result;
@@ -97,6 +100,9 @@ function funcArgs(selector, argsList, x) {
 
 function funcArg(varDef, y) {
     switch (varDef["type"]) {
+    case "Enum":
+        y = Int(y.value);
+        // Fall through!
     case "Address": case "Int":
         return y.toEthABI();
     case "Bool":

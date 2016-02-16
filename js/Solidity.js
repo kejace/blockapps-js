@@ -4,7 +4,6 @@ var extabi = routes.extabi;
 var Account = require("./Account.js");
 var Address = require("./Address.js");
 var Int = require("./Int.js");
-var Transaction = require("./Transaction.js");
 var Storage = require("./Storage.js");
 var Promise = require('bluebird');
 var Enum = require('./solidity/enum');
@@ -47,7 +46,8 @@ function Solidity(x) {
                 var contracts = {};
                 for (contract in solcR[file]) {
                     var xabi = xabiR[file][contract];
-                    
+                    var bin = solcR[file][contract].bin;
+                                        
                     var typesDef = xabi.types;
                     for (typeName in typesDef) {
                         var typeDef = typesDef[typeName];
@@ -60,8 +60,9 @@ function Solidity(x) {
 
                     contracts[contract] = assignType(Solidity,
                         {
-                            "bin": solcR[file][contract].bin,
-                            "xabi": xabi
+                            "bin": bin,
+                            "xabi": xabi,
+                            "name": contract
                         }
                     );
                 }
@@ -85,8 +86,24 @@ Solidity.prototype = {
     "xabi" : null,
     "account" : null,
     "constructor" : Solidity,
-    "newContract" : newContract,
-    "attach": function() { return Solidity.attach.bind(this); },
+    "construct": function() {
+        var constrDef = {
+            "selector" : this.bin,
+            "args": this.xabi.constr,
+            "vals": {}
+        };
+        var tx = solMethod.
+            call(this, this.xabi.types, constrDef, this.name).
+            apply(Address(0), arguments);
+        tx.callFrom = constrFrom;
+        return tx;
+    },
+    "newContract" : function (privkey, txParams) { // Backwards-compatibility
+        return this.construct().txParams(txParams).callFrom(privkey);
+    },
+    "attach": function() {
+        return Solidity.attach.bind(null, this);
+    },
     "toJSON": function() {
         var copy = {};
         var orig = this;
@@ -101,25 +118,21 @@ Solidity.fromJSON = function(x) {
     return assignType(Solidity, JSON.parse(x));
 };
 
-// txParams = {value, gasPrice, gasLimit}
-function newContract(privkey, txParams) {
-    var solObj = this;
-    if (txParams === undefined) {
-        txParams = {};
-    }
-    txParams.data = this.bin;
-    return Transaction(txParams).send(privkey, null).
+function constrFrom(privkey) {
+    return this.send(privkey).
         get("contractsCreated").
         tap(function(addrList){
             if (addrList.length !== 1) {
-                throw new Error("code must create one and only one account");
+                throw new Error("constructor must create a single account");
             }
         }).
         get(0).
         then(Address).
+        bind(this).
         then(function(addr) {
-            solObj.account = new Account(addr);
-            return solObj;
+            var contract = this._solObj;
+            contract.account = new Account(addr);
+            return contract;
         }).
         then(attach).
         tagExcepts("Solidity");

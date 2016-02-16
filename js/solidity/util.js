@@ -28,12 +28,12 @@ function readInput(typesDef, varDef, x) {
                 x = "0" + x;
             }
 
-            if (!isDynamic(varDef)) {
+            if (!varDef.dynamic) {
                 var bytes = parseInt(varDef["bytes"]);
                 if (x.length !== 2 * bytes) {
                     throw errors.tagError(
                         "Solidity",
-                        "bytes" + bytes + "type requires " +
+                        "bytes" + bytes + " type requires " +
                             bytes + " bytes (" + 2*bytes + " hex digits)"
                     );
                 }
@@ -43,7 +43,7 @@ function readInput(typesDef, varDef, x) {
         case "Int":
             return Int(x);
         case "String":
-            return x;
+            return String(x);
         case "Struct":
             var typeDef = types[varDef["typedef"]];
             if (typeof x !== "object") {
@@ -77,7 +77,7 @@ function readInput(typesDef, varDef, x) {
 
             return result;
         case "Enum":
-            return x;
+            return varDef.names.get(x);
         default:
             throw errors.tagError(
                 "Solidity",
@@ -155,11 +155,17 @@ function setTypedefs(typesDef, varsDef) {
         var varDef = varsDef[varName];
         if ("typedef" in varDef) {
             var typeName = varDef.typedef;
-            var typeDef = typesDef[typeName];
-            varDef.type = typeDef.type;
-            varDef.bytes = typeDef.bytes;
-            if (varDef.type === "Enum") {
-                varDef.names = typeDef.names;
+            if (typesDef && typeName in typesDef) {
+                var typeDef = typesDef[typeName];
+                varDef.type = typeDef.type;
+                varDef.bytes = typeDef.bytes;
+                if (varDef.type === "Enum") {
+                    varDef.names = typeDef.names;
+                }
+            }
+            else {
+                varDef.type = "Contract";
+                varDef.bytes = 20;
             }
         }
     }

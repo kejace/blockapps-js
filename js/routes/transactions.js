@@ -47,8 +47,7 @@ function transaction(transactionQueryObj) {
     catch(e) {
         errors.pushTag("transaction")(e);
     }
-    return Promise.try(prepare).
-        then(HTTPQuery.bind(null, "/transaction", {"get": transactionQueryObj})).
+    return HTTPQuery("/transaction", {"get": transactionQueryObj}).
         then(function(txs) {
             if (txs.length === 0) {
                 throw errors.tagError(
@@ -73,8 +72,7 @@ function transactionLast(n) {
     catch(e) {
         errors.pushTag("transactionLast")(e);
     }
-    return Promise.try(prepare).
-        then(HTTPQuery.bind(null, "/transaction/last/" + n, {"get":{}})).
+    return HTTPQuery("/transaction/last/" + n, {"get":{}}).
         tagExcepts("transactionLast");
 }
 
@@ -88,17 +86,15 @@ function transactionResult(txHash) {
         errors.pushTag("transactionResult")(e);
     }
     return HTTPQuery("/transactionResult/" + txHash, {"get":{}}).
-        then(
-            function(txList) {
-                if (txList.length === 0) {
-                    throw errors.tagError(
-                        "NotDone",
-                        "The transaction with this hash has not yet been executed."
-                    );
-                }
-                return txList[0];
+        then(function(txList) {
+            if (txList.length === 0) {
+                throw errors.tagError(
+                    "NotDone",
+                    "The transaction with this hash has not yet been executed."
+                );
             }
-        ).
+            return txList[0];
+        }).
         then(function(txResult){
             if (txResult.transactionHash !== txHash) {
                 throw new Error(
