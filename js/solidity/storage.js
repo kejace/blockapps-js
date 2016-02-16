@@ -11,6 +11,8 @@ function readStorageVar(varDef, storage) {
         return simpleBuf(varDef, storage).get(0).then(function(x) {return x==1;});
     case "Bytes":
         return readBytes(varDef, storage);
+    case "Enum":
+        return simpleBuf(varDef, storage).then(varDef.names.get.bind(varDef.names));
     case "Int":
         return simpleBuf(varDef, storage).then(util.castInt.bind(null, varDef));
     case "String":

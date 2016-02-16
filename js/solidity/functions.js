@@ -2,10 +2,13 @@ var Int = require("../Int.js");
 var Transaction = require("../Transaction.js");
 var util = require("./util.js");
 var errors = require("../errors.js");
+var Enum = require("./enum.js");
 
 function solMethod(typesDef, funcDef, name) {
     var vals = funcDef["vals"];
+    util.setTypedefs(typesDef, vals);
     var args = funcDef["args"];
+    util.setTypedefs(typesDef, args);
     var argsList = entriesToList(args);
 
     return function() {
@@ -47,11 +50,13 @@ function solMethod(typesDef, funcDef, name) {
         });
         result.txParams = txParams;
         result.callFrom = callFrom;
-        Object.defineProperty(result, "_ret", {
-            value: {
-                type: "Array",
-                entries: vals,
-                length: Object.keys(vals).length
+        Object.defineProperties(result, {
+            "_ret" : {
+                value: {
+                    type: "Array",
+                    entries: vals,
+                    length: Object.keys(vals).length
+                }
             }
         });
         return result;
@@ -218,11 +223,14 @@ function decodeReturn(valsDef, x) {
             result.write(x,0,length,"hex");
             toSlice = 2 * roundLength;
             break;
+        case "Enum":
+            after = valDef.names.get.bind(valDef.names);
+            // Fall through!
         case "Int":
             result = util.castInt(valDef, grabInt());
             break;
         case "Array":
-            toSlice = getLength(valDef) * 64;
+            toSlice = 0; // Handled by the entries
             result = [];
             after = function(arr) {
                 var entries;
@@ -245,10 +253,9 @@ function decodeReturn(valsDef, x) {
             }
             break;
         }
-        var result = after(result);
         x = x.slice(toSlice);
         toSlice = undefined;
-        return result;
+        return after(result);
     }
     return go(valsDef);
 }

@@ -44,43 +44,40 @@ function readInput(typesDef, varDef, x) {
             return Int(x);
         case "String":
             return x;
-        case undefined:
+        case "Struct":
             var typeDef = types[varDef["typedef"]];
-            switch (typeDef["type"]) {
-            case "Struct":
-                if (typeof x !== "object") {
+            if (typeof x !== "object") {
+                throw errors.tagError(
+                    "Solidity",
+                    "struct type takes object input"
+                );
+            }
+
+            var fields = typeDef["structFields"];
+            var result = {};
+            for (name in x) {
+                var field = fields[name];
+                if (field === undefined) {
                     throw errors.tagError(
                         "Solidity",
-                        "struct type takes object input"
+                        "struct type does not have a field \"" + name + "\""
                     );
                 }
-
-                var fields = typeDef["structFields"];
-                var result = {};
-                for (name in x) {
-                    var field = fields[name];
-                    if (field === undefined) {
-                        throw errors.tagError(
-                            "Solidity",
-                            "struct type does not have a field \"" + name + "\""
-                        );
-                    }
-                    result[name] = readInput(field, x[name]);
-                }
-
-                for (fieldName in fields) {
-                    if (!(fieldName in result)) {
-                        throw error.tagError(
-                            "Solidity",
-                            "struct type input missing field \"" + fieldName + "\""
-                        );
-                    }
-                }
-
-                return result;
-            case "Enum":
-                return x;
+                result[name] = readInput(field, x[name]);
             }
+
+            for (fieldName in fields) {
+                if (!(fieldName in result)) {
+                    throw error.tagError(
+                        "Solidity",
+                        "struct type input missing field \"" + fieldName + "\""
+                    );
+                }
+            }
+
+            return result;
+        case "Enum":
+            return x;
         default:
             throw errors.tagError(
                 "Solidity",
@@ -148,11 +145,23 @@ function objectSize(varDef, typeDefs) {
         return 20;
     case "Array":
         return varDef["length"] * objectSize(varDef["entry"], typeDefs);
-    case undefined:
-        var typeName = varDef["typedef"];
-        return typeDefs[typeName]["bytes"];
     default:
         return varDef["bytes"];
+    }
+}
+
+function setTypedefs(typesDef, varsDef) {
+    for (var varName in varsDef) {
+        var varDef = varsDef[varName];
+        if ("typedef" in varDef) {
+            var typeName = varDef.typedef;
+            var typeDef = typesDef[typeName];
+            varDef.type = typeDef.type;
+            varDef.bytes = typeDef.bytes;
+            if (varDef.type === "Enum") {
+                varDef.names = typeDef.names;
+            }
+        }
     }
 }
 
@@ -163,5 +172,6 @@ module.exports = {
     castInt : castInt,
     encodingLength: encodingLength,
     fitObjectStart: fitObjectStart,
-    objectSize: objectSize
+    objectSize: objectSize,
+    setTypedefs: setTypedefs
 }

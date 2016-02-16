@@ -7,7 +7,7 @@ var Int = require("./Int.js");
 var Transaction = require("./Transaction.js");
 var Storage = require("./Storage.js");
 var Promise = require('bluebird');
-var nodeEnum = require('enum');
+var Enum = require('./solidity/enum');
 
 var readStorageVar = require("./solidity/storage.js");
 var util = require("./solidity/util.js");
@@ -46,10 +46,22 @@ function Solidity(x) {
             for (file in solcR) {
                 var contracts = {};
                 for (contract in solcR[file]) {
+                    var xabi = xabiR[file][contract];
+                    
+                    var typesDef = xabi.types;
+                    for (typeName in typesDef) {
+                        var typeDef = typesDef[typeName];
+                        if (typeDef.type === "Enum") {
+                            typeDef.names = Enum(typeDef.names, typeName);
+                        }
+                    }
+
+                    util.setTypedefs(typesDef, xabi.vars);
+
                     contracts[contract] = assignType(Solidity,
                         {
                             "bin": solcR[file][contract].bin,
-                            "xabi": xabiR[file][contract]
+                            "xabi": xabi
                         }
                     );
                 }
@@ -214,42 +226,25 @@ function makeSolObject(typeDefs, varDef, storage) {
             }
             return Promise.all(result);                
         });
-    case undefined:
+    case "Struct":
         var userName = varDef["typedef"];
         var typeDef = typeDefs[userName];
+        var fields = typeDef["fields"];
+        // Artificially align
+        var baseKey = util.fitObjectStart(varDef["atBytes"], 32);
 
-        switch (typeDef["type"]) {
-        case "Struct":
-            var fields = typeDef["fields"];
-            // Artificially align
-            var baseKey = util.fitObjectStart(varDef["atBytes"], 32);
-
-            var result = {};
-            for (var name in fields) {
-                var field = fields[name];
-                var fieldCopy = {};
-                for (var p in field) {
-                    fieldCopy[p] = field[p];
-                }
-                var fieldOffset = Int(field["atBytes"]);
-                fieldCopy["atBytes"] = baseKey.plus(fieldOffset);
-                result[name] = makeSolObject(typeDefs, fieldCopy, storage);
+        var result = {};
+        for (var name in fields) {
+            var field = fields[name];
+            var fieldCopy = {};
+            for (var p in field) {
+                fieldCopy[p] = field[p];
             }
-            return Promise.props(result);
-
-        case "Enum":
-            var names = typeDef["names"];
-            var enumType = new nodeEnum(names);
-
-            var uintDef = {
-                atBytes: varDef["atBytes"],
-                bytes: typeDef["bytes"],
-                type: "Int",
-            };
-            return readSolVar(uintDef, storage).then(function(x) {
-                return enumType.get(x.valueOf());
-            })
+            var fieldOffset = Int(field["atBytes"]);
+            fieldCopy["atBytes"] = baseKey.plus(fieldOffset);
+            result[name] = makeSolObject(typeDefs, fieldCopy, storage);
         }
+        return Promise.props(result);
     default:
         return readStorageVar(varDef, storage);
     }
